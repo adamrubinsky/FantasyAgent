@@ -64,12 +64,13 @@ def test():
 @cli.command()
 @click.option('--position', '-p', help='Filter by position (QB, RB, WR, TE)')
 @click.option('--limit', '-l', default=10, help='Number of players to show')
-def available(position, limit):
+@click.option('--enhanced', '-e', is_flag=True, help='Show enhanced data (ADP, bye weeks, playoff outlook)')
+def available(position, limit, enhanced):
     """Show available players in your draft"""
-    asyncio.run(show_available_players(position, limit))
+    asyncio.run(show_available_players(position, limit, enhanced))
 
 
-async def show_available_players(position: str = None, limit: int = 10):
+async def show_available_players(position: str = None, limit: int = 10, enhanced: bool = False):
     """Display available players in a nice table"""
     username = os.getenv('SLEEPER_USERNAME')
     league_id = os.getenv('SLEEPER_LEAGUE_ID')
@@ -92,32 +93,60 @@ async def show_available_players(position: str = None, limit: int = 10):
             console.print(f"🔍 Getting available players for draft {draft_id}...")
             if position:
                 console.print(f"   Filtering by position: {position}")
+            if enhanced:
+                console.print("   🚀 Enhanced mode: Including ADP, bye weeks, and playoff outlook")
             
-            available_players = await client.get_available_players(draft_id, position)
+            available_players = await client.get_available_players(draft_id, position, enhanced)
             
             if not available_players:
                 console.print("No available players found", style="yellow")
                 return
             
-            # Create table
-            table = Table(title=f"Available Players{f' ({position})' if position else ''}")
+            # Create table with enhanced columns if requested
+            table_title = f"Available Players{f' ({position})' if position else ''}"
+            if enhanced:
+                table_title += " - Enhanced Data"
+            
+            table = Table(title=table_title)
             table.add_column("Rank", style="cyan", width=5)
-            table.add_column("Player", style="bold white", width=20)
-            table.add_column("Pos", style="green", width=6)
-            table.add_column("Team", style="blue", width=5)
-            table.add_column("Experience", style="yellow", width=10)
+            table.add_column("Player", style="bold white", width=18)
+            table.add_column("Pos", style="green", width=4)
+            table.add_column("Team", style="blue", width=4)
+            
+            if enhanced:
+                table.add_column("ADP", style="magenta", width=6)
+                table.add_column("Bye", style="yellow", width=4)
+                table.add_column("Playoff", style="red", width=8)
+                table.add_column("Score", style="bright_green", width=6)
+            else:
+                table.add_column("Experience", style="yellow", width=10)
             
             # Add rows (limit results)
             for i, player in enumerate(available_players[:limit]):
                 rank = str(player['rank']) if player['rank'] < 999 else "N/A"
                 positions = "/".join(player['positions'])
                 team = player['team'] or "FA"
-                exp = f"{player['years_exp']}y" if player.get('years_exp') else "R"
                 
-                table.add_row(rank, player['name'], positions, team, exp)
+                if enhanced:
+                    adp = f"{player.get('adp', 'N/A'):.1f}" if player.get('adp') else 'N/A'
+                    bye_week = str(player.get('bye_week', 'N/A'))
+                    playoff = player.get('playoff_outlook', 'unknown')[:8]  # Truncate
+                    fantasy_score = f"{player.get('fantasy_score', 0):.1f}"
+                    
+                    table.add_row(rank, player['name'], positions, team, adp, bye_week, playoff, fantasy_score)
+                else:
+                    exp = f"{player['years_exp']}y" if player.get('years_exp') else "R"
+                    table.add_row(rank, player['name'], positions, team, exp)
             
             console.print(table)
-            console.print(f"\nShowing {min(len(available_players), limit)} of {len(available_players)} available players")
+            
+            # Enhanced summary
+            if enhanced:
+                console.print(f"\nShowing {min(len(available_players), limit)} of {len(available_players)} available players")
+                console.print("💡 [dim]ADP=Average Draft Position, Bye=Bye Week, Playoff=Week 14-16 Outlook, Score=Fantasy Relevance[/dim]")
+            else:
+                console.print(f"\nShowing {min(len(available_players), limit)} of {len(available_players)} available players")
+                console.print("💡 [dim]Use --enhanced/-e for ADP, bye weeks, and playoff data[/dim]")
             
         except Exception as e:
             console.print(f"❌ Error: {e}", style="red")

@@ -221,7 +221,7 @@ class SleeperClient:
         
         return players_data
     
-    async def get_available_players(self, draft_id: str, position: str = None) -> List[Dict[str, Any]]:
+    async def get_available_players(self, draft_id: str, position: str = None, enhanced: bool = False) -> List[Dict[str, Any]]:
         """
         Get players still available in the draft - THIS IS THE KEY METHOD FOR DRAFT DAY
         
@@ -234,7 +234,8 @@ class SleeperClient:
         3. Filter out already-drafted players
         4. Optionally filter by position (QB, RB, WR, TE for SUPERFLEX)
         5. Sort by Sleeper's search rank (lower = better)
-        6. Return clean list of available players with key info
+        6. Optionally enhance with ADP, bye weeks, playoff outlook
+        7. Return clean list of available players with key info
         
         Critical for SUPERFLEX leagues:
         - QBs will have very high rankings (2-4) due to SUPERFLEX value
@@ -243,6 +244,7 @@ class SleeperClient:
         Args:
             draft_id: The specific draft ID (found in league info)
             position: Optional filter by position ("QB", "RB", "WR", "TE", etc.)
+            enhanced: If True, add ADP, bye weeks, and playoff data
             
         Returns:
             List of player dictionaries, each containing:
@@ -254,6 +256,13 @@ class SleeperClient:
             - years_exp: Years of NFL experience
             - age: Player's age
             - injury_status: Current injury status if any
+            
+            If enhanced=True, also includes:
+            - adp: Average Draft Position from multiple sources
+            - adp_trend: ADP trend (rising/falling/stable)
+            - bye_week: NFL bye week number
+            - playoff_outlook: Playoff matchup strength (favorable/neutral/difficult)
+            - fantasy_score: Composite fantasy relevance score
         """
         # Step 1: Get the complete NFL player database (cached for performance)
         players = await self.get_all_players()
@@ -306,6 +315,19 @@ class SleeperClient:
         # Lower rank = better player (Josh Allen = rank 2, backup QB = rank 300+)
         # Handle None values by treating them as rank 999 (unranked)
         available.sort(key=lambda x: x['rank'] if x['rank'] is not None else 999)
+        
+        # Step 8: Enhance with additional data if requested
+        if enhanced:
+            try:
+                # Import the enricher here to avoid circular imports
+                from core.player_data_enricher import PlayerDataEnricher
+                
+                async with PlayerDataEnricher() as enricher:
+                    available = await enricher.enrich_player_data(available)
+                    print(f"✅ Enhanced {len(available)} players with ADP, bye weeks, and playoff data")
+            except Exception as e:
+                print(f"⚠️ Failed to enhance player data: {e}")
+                # Continue with basic data if enhancement fails
         
         return available
     

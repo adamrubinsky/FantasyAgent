@@ -18,6 +18,33 @@ from core.league_context import league_manager
 
 
 # Helper function to get live rankings data for agents
+async def get_cached_rankings_data(position: str = "ALL", limit: int = 50, cache_minutes: int = 5) -> str:
+    """Cached version of live rankings data to reduce API calls during rapid queries"""
+    import time
+    
+    cache_key = f"{position}_{limit}"
+    current_time = time.time()
+    
+    # Check if we have cached data that's still fresh
+    if (hasattr(get_cached_rankings_data, '_cache') and 
+        cache_key in get_cached_rankings_data._cache):
+        
+        cached_data, cache_time = get_cached_rankings_data._cache[cache_key]
+        if current_time - cache_time < (cache_minutes * 60):
+            print(f"📍 Using cached rankings data ({position}, limit={limit})")
+            return cached_data
+    
+    # Fetch fresh data
+    print(f"🔄 Fetching fresh rankings data ({position}, limit={limit})")
+    fresh_data = await get_live_rankings_data(position, limit)
+    
+    # Cache the result
+    if not hasattr(get_cached_rankings_data, '_cache'):
+        get_cached_rankings_data._cache = {}
+    get_cached_rankings_data._cache[cache_key] = (fresh_data, current_time)
+    
+    return fresh_data
+
 async def get_live_rankings_data(position: str = "ALL", limit: int = 50) -> str:
     """
     Fetch current FantasyPros rankings for agents to use in analysis
@@ -137,6 +164,11 @@ class FantasyDraftCrew:
             "user_roster": [],
             "league_context": None
         }
+        
+        # Performance caching
+        self._cached_rankings = None
+        self._cache_timestamp = None
+        self._cache_ttl = 300  # 5 minutes
     
     # Remove tools method since we're handling data differently
     
@@ -211,6 +243,8 @@ class FantasyDraftCrew:
         """
         Process any draft-related question through the multi-agent workflow
         
+        OPTIMIZED VERSION: Reduced complexity, faster execution, smart caching
+        
         Args:
             question: User's question about draft strategy
             context: Additional context (draft position, available players, etc.)
@@ -222,7 +256,7 @@ class FantasyDraftCrew:
         if context:
             self.session_context.update(context)
         
-        # Add league context
+        # Add league context (cached)
         league_context = league_manager.get_current_context()
         if league_context:
             self.session_context["league_context"] = {
@@ -230,32 +264,175 @@ class FantasyDraftCrew:
                 "scoring": league_context.scoring_format,
                 "teams": league_context.total_teams,
                 "superflex": league_context.is_superflex,
-                "qb_spots": league_context.total_qb_spots,
-                "roster_positions": league_context.roster_positions
+                "qb_spots": league_context.total_qb_spots
             }
         
-        # Create tasks for each agent
-        tasks = await self._create_tasks_for_question(question)
+        # Try fast single-agent approach first for simple questions
+        if self._is_simple_question(question):
+            return await self._handle_simple_question(question)
         
-        # Create and run the crew
-        crew = Crew(
-            agents=[
-                self.agents["data_collector"],
-                self.agents["analyst"], 
-                self.agents["strategist"],
-                self.agents["advisor"]
-            ],
-            tasks=tasks,
-            process=Process.sequential,  # Run agents in sequence
-            verbose=True
-        )
+        # Use full multi-agent workflow for complex questions
+        try:
+            tasks = await self._create_optimized_tasks(question)
+            
+            crew = Crew(
+                agents=[
+                    self.agents["data_collector"],
+                    self.agents["analyst"], 
+                    self.agents["strategist"],
+                    self.agents["advisor"]
+                ],
+                tasks=tasks,
+                process=Process.sequential,
+                verbose=False  # Reduce output for speed
+            )
+            
+            # Set shorter timeout
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("CrewAI execution timed out")
+            
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(45)  # 45 second timeout
+            
+            try:
+                result = crew.kickoff()
+                signal.alarm(0)  # Cancel timeout
+                return str(result)
+            except TimeoutError:
+                signal.alarm(0)
+                return await self._handle_simple_question(question)
+                
+        except Exception as e:
+            print(f"⚠️ Multi-agent workflow failed: {e}")
+            return await self._handle_simple_question(question)
+    
+    def _is_simple_question(self, question: str) -> bool:
+        """Determine if question can be handled by single agent for speed"""
+        simple_patterns = [
+            "who should i draft",
+            "vs",  # player comparisons
+            "better",
+            "pick between",
+            "tee higgins",
+            "jayden higgins", 
+            "josh allen",
+            "rankings",
+            "tier"
+        ]
+        
+        question_lower = question.lower()
+        return any(pattern in question_lower for pattern in simple_patterns)
+    
+    async def _handle_simple_question(self, question: str) -> str:
+        """Fast single-agent response for simple questions"""
+        print("🚀 Using optimized single-agent response...")
         
         try:
-            # Execute the crew workflow
-            result = crew.kickoff()
-            return str(result)
+            # Get minimal live data (cached for 5 minutes)
+            live_data = await get_cached_rankings_data(limit=20)  # Only top 20 for speed
+            
+            # Create single comprehensive task
+            task = Task(
+                description=f"""
+                Answer this fantasy football question: "{question}"
+                
+                League: {self.session_context.get('league_context', {}).get('name', 'SUPERFLEX')} 
+                Format: SUPERFLEX Half-PPR
+                
+                CURRENT TOP PLAYERS:
+                {live_data}
+                
+                Provide a clear, concise answer with:
+                1. Direct recommendation
+                2. Key reasoning (2-3 points)
+                3. SUPERFLEX considerations if relevant
+                
+                Keep response under 200 words for speed.
+                """,
+                agent=self.agents["advisor"],  # Use most capable agent
+                expected_output="Concise recommendation with clear reasoning"
+            )
+            
+            # Execute single task using crew (needed for proper execution)
+            mini_crew = Crew(
+                agents=[self.agents["advisor"]],
+                tasks=[task],
+                process=Process.sequential,
+                verbose=False
+            )
+            
+            result = mini_crew.kickoff()
+            return f"🎯 **Quick Analysis**:\n\n{result}"
+            
         except Exception as e:
-            return f"❌ CrewAI Error: {str(e)}\\n\\nFalling back to basic analysis..."
+            # Ultra-fast fallback
+            return f"""
+🎯 **Quick Analysis** (Fallback):
+
+Based on your question: "{question}"
+
+For SUPERFLEX leagues, remember:
+- QBs are premium (Josh Allen, Lamar Jackson worth early picks)
+- Positional scarcity matters more than standard leagues
+- Target 2-3 QBs by round 7
+
+Current recommendation: Focus on proven performers with high floors in SUPERFLEX format.
+
+⚠️ For detailed analysis, the full multi-agent system is available but may take longer.
+            """
+    
+    async def _create_optimized_tasks(self, question: str) -> List[Task]:
+        """Create streamlined tasks with reduced context for speed"""
+        # Get targeted data only
+        relevant_players = self._extract_player_names(question)
+        if relevant_players:
+            live_data = await get_player_projections_data(relevant_players[:5])  # Max 5 players
+        else:
+            live_data = await get_cached_rankings_data(limit=15)  # Reduced from 100, cached
+        
+        # Streamlined tasks with shorter prompts
+        tasks = [
+            Task(
+                description=f'Identify key players and data for: "{question}". Use: {live_data[:500]}...',  # Truncated
+                agent=self.agents["data_collector"],
+                expected_output="Key player data summary"
+            ),
+            Task(
+                description=f'Analyze players for: "{question}". Focus on main comparison points.',
+                agent=self.agents["analyst"],
+                expected_output="Player analysis summary"
+            ),
+            Task(
+                description=f'Strategy for: "{question}". Consider SUPERFLEX league format.',
+                agent=self.agents["strategist"],
+                expected_output="Strategic recommendation"
+            ),
+            Task(
+                description=f'Final answer for: "{question}". Be concise and actionable.',
+                agent=self.agents["advisor"],
+                expected_output="Clear recommendation with reasoning"
+            )
+        ]
+        
+        return tasks
+    
+    def _extract_player_names(self, question: str) -> List[str]:
+        """Extract likely player names from question"""
+        # Simple name extraction - look for capitalized words
+        words = question.split()
+        names = []
+        
+        for i, word in enumerate(words):
+            if word[0].isupper() and len(word) > 2:
+                # Check if next word is also capitalized (likely full name)
+                if i + 1 < len(words) and words[i + 1][0].isupper():
+                    names.append(f"{word} {words[i + 1]}")
+                elif word not in ['Should', 'Who', 'What', 'The', 'Josh', 'Allen'] and len(word) > 3:
+                    names.append(word)
+        
+        return list(set(names))  # Remove duplicates
     
     async def _create_tasks_for_question(self, question: str) -> List[Task]:
         """Create specific tasks for each agent based on the question"""
