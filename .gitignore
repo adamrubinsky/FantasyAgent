@@ -73,5 +73,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Official FantasyPros MCP Server (temporary download)
-temp-fantasypros-mcp/
+# External MCP servers
+external/*/node_modules/
+external/*/.git/
+external/*/npm-debug.log*

@@ -60,6 +60,14 @@ class FantasyAIAssistant:
         # Context for conversations
         self.conversation_history = []
         self.current_draft_context = {}
+        
+        # Model preferences (most advanced first)
+        self.model_preferences = [
+            "claude-3-5-sonnet-20241022",  # Current working Sonnet 3.5  
+            "claude-sonnet-4-20250514",    # Claude Sonnet 4 (test when available)
+            "claude-3-5-sonnet-20240620",  # Fallback: Older Sonnet 3.5
+            "claude-3-sonnet-20240229",    # Fallback: Sonnet 3.0
+        ]
     
     def _build_system_prompt(self) -> str:
         """
@@ -123,6 +131,187 @@ IMPORTANT CONSIDERATIONS:
 - Keeper/dynasty vs redraft strategies differ significantly
 
 Always consider the user's specific league context in your analysis."""
+    
+    def _get_best_available_model(self) -> str:
+        """
+        Get the best available Claude model, with fallbacks
+        
+        Returns:
+            Model string to use for API calls
+        """
+        # For now, return the most recent known model
+        # In production, we could add logic to test model availability
+        return self.model_preferences[0]  # Latest Sonnet 4
+    
+    def _get_available_tools(self) -> List[Dict[str, Any]]:
+        """
+        Define tools that the AI can use for live data integration
+        
+        Returns:
+            List of tool definitions for Claude API
+        """
+        return [
+            {
+                "name": "get_live_rankings",
+                "description": "Get current fantasy football rankings from FantasyPros MCP server with league-specific scoring",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "position": {
+                            "type": "string", 
+                            "description": "Position to filter (QB, RB, WR, TE, K, DST) or 'ALL' for all positions",
+                            "enum": ["QB", "RB", "WR", "TE", "K", "DST", "ALL"]
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Number of players to return (default 20)",
+                            "minimum": 1,
+                            "maximum": 200
+                        }
+                    },
+                    "required": ["position"]
+                }
+            },
+            {
+                "name": "get_player_projections",
+                "description": "Get detailed projections for specific players",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "player_names": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of player names to get projections for"
+                        }
+                    },
+                    "required": ["player_names"]
+                }
+            },
+            {
+                "name": "get_available_players",
+                "description": "Get players still available in the current draft",
+                "input_schema": {
+                    "type": "object", 
+                    "properties": {
+                        "position": {
+                            "type": "string",
+                            "description": "Position to filter or 'ALL' for all positions",
+                            "enum": ["QB", "RB", "WR", "TE", "K", "DST", "ALL"]
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Number of players to return",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_draft_status",
+                "description": "Get current draft status including picks made and whose turn it is",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        ]
+    
+    async def _handle_tool_use(self, tool_name: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute tool calls from the AI and return results
+        
+        Args:
+            tool_name: Name of the tool to execute
+            tool_input: Input parameters for the tool
+            
+        Returns:
+            Tool execution results
+        """
+        try:
+            if tool_name == "get_live_rankings":
+                async with MCPClient() as mcp:
+                    position = tool_input.get("position", "ALL")
+                    limit = tool_input.get("limit", 20)
+                    rankings = await mcp.get_rankings(limit=limit)
+                    
+                    # Filter by position if specified
+                    if position != "ALL":
+                        filtered_players = []
+                        for player in rankings.get('players', []):
+                            if player.get('position') == position:
+                                filtered_players.append(player)
+                        rankings['players'] = filtered_players[:limit]
+                    
+                    return {
+                        "status": "success",
+                        "data": rankings,
+                        "message": f"Retrieved {len(rankings.get('players', []))} {position} players"
+                    }
+            
+            elif tool_name == "get_player_projections":
+                async with MCPClient() as mcp:
+                    player_names = tool_input.get("player_names", [])
+                    projections = await mcp.get_projections(player_names)
+                    return {
+                        "status": "success",
+                        "data": projections,
+                        "message": f"Retrieved projections for {len(player_names)} players"
+                    }
+            
+            elif tool_name == "get_available_players":
+                # This would integrate with draft monitor for live draft data
+                # For now, return mock data indicating the feature
+                return {
+                    "status": "info",
+                    "data": {"message": "Draft monitoring integration needed"},
+                    "message": "Live draft data requires active draft session"
+                }
+            
+            elif tool_name == "get_draft_status":
+                # This would integrate with draft monitor
+                return {
+                    "status": "info", 
+                    "data": {"message": "Draft monitoring integration needed"},
+                    "message": "Live draft status requires active draft session"
+                }
+            
+            else:
+                return {
+                    "status": "error",
+                    "data": {},
+                    "message": f"Unknown tool: {tool_name}"
+                }
+                
+        except Exception as e:
+            return {
+                "status": "error",
+                "data": {},
+                "message": f"Tool execution error: {str(e)}"
+            }
+    
+    async def _test_model_availability(self, model: str) -> bool:
+        """
+        Test if a specific model is available (future enhancement)
+        
+        Args:
+            model: Model string to test
+            
+        Returns:
+            True if model is available
+        """
+        try:
+            # Simple test call with minimal tokens
+            response = await self.claude.messages.create(
+                model=model,
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}]
+            )
+            return True
+        except Exception as e:
+            if "model" in str(e).lower():
+                return False
+            return True  # Other errors don't indicate model unavailability
 
     async def ask(self, question: str, context: Dict[str, Any] = None) -> str:
         """
@@ -157,16 +346,60 @@ Please provide a detailed analysis and recommendation based on the current leagu
         ]
         
         try:
-            # Call Claude API
+            # Call Claude API with most advanced model and tool use capability
             response = await self.claude.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model=self._get_best_available_model(),
                 max_tokens=1000,
                 temperature=0.3,
                 system=self._build_system_prompt(),
                 messages=messages
+                # tools=self._get_available_tools()  # Temporarily disabled for testing
             )
             
-            ai_response = response.content[0].text
+            # Handle tool use if AI wants to call tools
+            if response.content and response.content[0].type == "tool_use":
+                # AI wants to use tools - handle tool calls
+                tool_results = []
+                conversation_messages = messages.copy()
+                
+                # Add AI's response with tool use
+                conversation_messages.append({
+                    "role": "assistant", 
+                    "content": response.content
+                })
+                
+                # Execute each tool call
+                for content_block in response.content:
+                    if content_block.type == "tool_use":
+                        tool_result = await self._handle_tool_use(
+                            content_block.name, 
+                            content_block.input
+                        )
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": json.dumps(tool_result)
+                        })
+                
+                # Add tool results and get final response
+                conversation_messages.append({
+                    "role": "user",
+                    "content": tool_results
+                })
+                
+                # Get final response with tool results
+                final_response = await self.claude.messages.create(
+                    model=self._get_best_available_model(),
+                    max_tokens=1000,
+                    temperature=0.3,
+                    system=self._build_system_prompt(),
+                    messages=conversation_messages
+                )
+                
+                ai_response = final_response.content[0].text
+            else:
+                # No tool use, just get the text response
+                ai_response = response.content[0].text
             
             # Store in conversation history for context
             self.conversation_history.append({
@@ -179,6 +412,7 @@ Please provide a detailed analysis and recommendation based on the current leagu
             return ai_response
             
         except Exception as e:
+            print(f"DEBUG: AI Error details: {str(e)}")
             return f"❌ AI Error: {str(e)}\n\nFalling back to basic analysis..."
     
     async def compare_players(self, player1: str, player2: str, context: Dict[str, Any] = None) -> str:
@@ -229,7 +463,7 @@ Format as: RECOMMENDATION, KEY FACTORS, ANALYSIS
         
         try:
             response = await self.claude.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model=self._get_best_available_model(),
                 max_tokens=1200,
                 temperature=0.3,
                 system=self._build_system_prompt(),
@@ -297,7 +531,7 @@ Provide:
         
         try:
             response = await self.claude.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model=self._get_best_available_model(),
                 max_tokens=1200,
                 temperature=0.3,
                 system=self._build_system_prompt(),

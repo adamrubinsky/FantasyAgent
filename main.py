@@ -23,6 +23,7 @@ from core.draft_monitor import DraftMonitor
 from core.mcp_integration import MCPClient, EnhancedRankingsManager
 from core.league_context import league_manager
 from core.ai_assistant import FantasyAIAssistant
+from agents.draft_crew import FantasyDraftCrew
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials
@@ -411,41 +412,77 @@ async def show_value_picks(current_pick: int, limit: int = 10):
 
 
 async def ai_ask_question(question: str):
-    """Handle AI question answering"""
+    """Handle AI question answering with CrewAI multi-agent system"""
     console.print(f"🤖 Analyzing your question: \"{question}\"", style="yellow")
+    console.print("🔄 Deploying specialist agents: Data Collector → Analyst → Strategist → Advisor", style="blue")
     
-    assistant = FantasyAIAssistant()
-    response = await assistant.ask(question)
-    
-    console.print(f"\n🎯 AI Analysis:", style="bold cyan")
-    console.print(response)
+    try:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        crew = FantasyDraftCrew(anthropic_api_key=api_key)
+        response = await crew.analyze_draft_question(question)
+        
+        console.print(f"\n🎯 Multi-Agent Analysis:", style="bold cyan")
+        console.print(response)
+    except Exception as e:
+        console.print(f"❌ CrewAI Error: {str(e)}", style="red")
+        console.print("🔄 Falling back to single AI assistant...", style="yellow")
+        
+        # Fallback to single assistant
+        assistant = FantasyAIAssistant()
+        response = await assistant.ask(question)
+        console.print(f"\n🎯 AI Analysis:", style="bold cyan")
+        console.print(response)
 
 
 async def ai_compare_players(player1: str, player2: str):
-    """Handle AI player comparison"""
+    """Handle AI player comparison with CrewAI multi-agent system"""
     console.print(f"🤖 Comparing {player1} vs {player2}...", style="yellow")
+    console.print("🔄 Deploying specialist agents for player comparison", style="blue")
     
-    assistant = FantasyAIAssistant()
-    comparison = await assistant.compare_players(player1, player2)
-    
-    console.print(f"\n⚖️ Player Comparison: {player1} vs {player2}", style="bold cyan")
-    console.print(comparison)
+    try:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        crew = FantasyDraftCrew(anthropic_api_key=api_key)
+        comparison = await crew.compare_players(player1, player2)
+        
+        console.print(f"\n⚖️ Multi-Agent Player Comparison: {player1} vs {player2}", style="bold cyan")
+        console.print(comparison)
+    except Exception as e:
+        console.print(f"❌ CrewAI Error: {str(e)}", style="red")
+        console.print("🔄 Falling back to single AI assistant...", style="yellow")
+        
+        # Fallback to single assistant
+        assistant = FantasyAIAssistant()
+        comparison = await assistant.compare_players(player1, player2)
+        console.print(f"\n⚖️ Player Comparison: {player1} vs {player2}", style="bold cyan")
+        console.print(comparison)
 
 
 async def ai_draft_recommendation(current_pick: int):
-    """Handle AI draft recommendations"""
+    """Handle AI draft recommendations with CrewAI multi-agent system"""
     console.print(f"🤖 Analyzing draft options for pick #{current_pick}...", style="yellow")
+    console.print("🔄 Deploying full agent crew for draft recommendation", style="blue")
     
     # Get league context
     context = league_manager.get_current_context()
     if context:
         console.print(f"📋 League: {context.league_name} ({context.scoring_format.upper()})", style="dim")
     
-    assistant = FantasyAIAssistant()
-    recommendation = await assistant.get_draft_recommendation(current_pick)
-    
-    console.print(f"\n🎯 AI Draft Recommendation for Pick #{current_pick}:", style="bold cyan")
-    console.print(recommendation)
+    try:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        crew = FantasyDraftCrew(anthropic_api_key=api_key)
+        recommendation = await crew.get_draft_recommendation(current_pick)
+        
+        console.print(f"\n🎯 Multi-Agent Draft Recommendation for Pick #{current_pick}:", style="bold cyan")
+        console.print(recommendation)
+    except Exception as e:
+        console.print(f"❌ CrewAI Error: {str(e)}", style="red")
+        console.print("🔄 Falling back to single AI assistant...", style="yellow")
+        
+        # Fallback to single assistant
+        assistant = FantasyAIAssistant()
+        recommendation = await assistant.get_draft_recommendation(current_pick)
+        console.print(f"\n🎯 AI Draft Recommendation for Pick #{current_pick}:", style="bold cyan")
+        console.print(recommendation)
 
 
 async def show_league_info():
