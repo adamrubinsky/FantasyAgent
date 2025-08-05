@@ -54,6 +54,8 @@ logs/
 
 # Secrets and API keys
 .env
+.env.local
+.env.production
 oauth_tokens/
 auth/
 

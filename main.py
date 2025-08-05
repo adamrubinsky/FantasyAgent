@@ -20,8 +20,9 @@ sys.path.insert(0, str(project_root))
 
 from api.sleeper_client import SleeperClient, test_sleeper_connection
 
-# Load environment variables
-load_dotenv()
+# Load environment variables - try local first, then default
+load_dotenv('.env.local')  # For local development with real credentials
+load_dotenv()              # Fallback to .env (with placeholders)
 
 console = Console()
 

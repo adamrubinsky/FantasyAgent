@@ -387,6 +387,7 @@ async def test_sleeper_connection():
 if __name__ == "__main__":
     # Run test when script is executed directly
     import dotenv
-    dotenv.load_dotenv()
+    dotenv.load_dotenv('.env.local')  # Load local credentials first
+    dotenv.load_dotenv()              # Fallback to .env
     
     asyncio.run(test_sleeper_connection())
