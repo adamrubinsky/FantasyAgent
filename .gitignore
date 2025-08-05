@@ -66,3 +66,12 @@ htmlcov/
 
 # Jupyter notebooks (if any)
 .ipynb_checkpoints
+
+# Node.js (for official FantasyPros MCP server)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Official FantasyPros MCP Server (temporary download)
+temp-fantasypros-mcp/
