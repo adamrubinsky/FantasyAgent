@@ -1,0 +1,451 @@
+{
+  "timestamp": 1754432931.8128278,
+  "current_pick": 20,
+  "picks_until_turn": 3,
+  "available_count": 8594,
+  "position_analysis": {
+    "QB": {
+      "top_players": [
+        {
+          "player_id": "4984",
+          "name": "Josh Allen",
+          "team": "BUF",
+          "positions": [
+            "QB"
+          ],
+          "rank": 2,
+          "years_exp": 7,
+          "age": 29,
+          "injury_status": null,
+          "adp": 2.1,
+          "adp_trend": "stable",
+          "bye_week": 12,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 29.2
+        },
+        {
+          "player_id": "4881",
+          "name": "Lamar Jackson",
+          "team": "BAL",
+          "positions": [
+            "QB"
+          ],
+          "rank": 3,
+          "years_exp": 7,
+          "age": 28,
+          "injury_status": null,
+          "adp": 3.5,
+          "adp_trend": "stable",
+          "bye_week": 14,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 29.0
+        },
+        {
+          "player_id": "11566",
+          "name": "Jayden Daniels",
+          "team": "WAS",
+          "positions": [
+            "QB"
+          ],
+          "rank": 4,
+          "years_exp": 1,
+          "age": 24,
+          "injury_status": null,
+          "adp": 4.8,
+          "bye_week": 14,
+          "playoff_outlook": "difficult",
+          "fantasy_score": 25.9
+        },
+        {
+          "player_id": "6770",
+          "name": "Joe Burrow",
+          "team": "CIN",
+          "positions": [
+            "QB"
+          ],
+          "rank": 11,
+          "years_exp": 5,
+          "age": 28,
+          "injury_status": null,
+          "adp": 29.2,
+          "adp_trend": "stable",
+          "bye_week": 12,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 24.9
+        },
+        {
+          "player_id": "6904",
+          "name": "Jalen Hurts",
+          "team": "PHI",
+          "positions": [
+            "QB"
+          ],
+          "rank": 14,
+          "years_exp": 5,
+          "age": 26,
+          "injury_status": null,
+          "adp": 33.1,
+          "adp_trend": "falling",
+          "bye_week": 5,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 28.4
+        }
+      ],
+      "count_available": 325
+    },
+    "RB": {
+      "top_players": [
+        {
+          "player_id": "4866",
+          "name": "Saquon Barkley",
+          "team": "PHI",
+          "positions": [
+            "RB"
+          ],
+          "rank": 2,
+          "years_exp": 7,
+          "age": 28,
+          "injury_status": null,
+          "adp": 1.2,
+          "adp_trend": "rising",
+          "bye_week": 5,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 31.2
+        },
+        {
+          "player_id": "9509",
+          "name": "Bijan Robinson",
+          "team": "ATL",
+          "positions": [
+            "RB"
+          ],
+          "rank": 3,
+          "years_exp": 2,
+          "age": 23,
+          "injury_status": null,
+          "adp": 8.2,
+          "adp_trend": "stable",
+          "bye_week": 12,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 26.8
+        },
+        {
+          "player_id": "9221",
+          "name": "Jahmyr Gibbs",
+          "team": "DET",
+          "positions": [
+            "RB"
+          ],
+          "rank": 5,
+          "years_exp": 2,
+          "age": 23,
+          "injury_status": null,
+          "adp": 7.8,
+          "adp_trend": "rising",
+          "bye_week": 5,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 28.6
+        },
+        {
+          "player_id": "3198",
+          "name": "Derrick Henry",
+          "team": "BAL",
+          "positions": [
+            "RB"
+          ],
+          "rank": 10,
+          "years_exp": 9,
+          "age": 31,
+          "injury_status": null,
+          "adp": 21.5,
+          "adp_trend": "stable",
+          "bye_week": 14,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 27.4
+        },
+        {
+          "player_id": "12527",
+          "name": "Ashton Jeanty",
+          "team": "LV",
+          "positions": [
+            "RB"
+          ],
+          "rank": 12,
+          "years_exp": 0,
+          "age": 21,
+          "injury_status": null,
+          "adp": 14.399999999999999,
+          "bye_week": 10,
+          "playoff_outlook": "difficult",
+          "fantasy_score": 27.6
+        }
+      ],
+      "count_available": 676
+    },
+    "WR": {
+      "top_players": [
+        {
+          "player_id": "7564",
+          "name": "Ja'Marr Chase",
+          "team": "CIN",
+          "positions": [
+            "WR"
+          ],
+          "rank": 1,
+          "years_exp": 4,
+          "age": 25,
+          "injury_status": null,
+          "adp": 11.3,
+          "adp_trend": "stable",
+          "bye_week": 12,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 26.8
+        },
+        {
+          "player_id": "6794",
+          "name": "Justin Jefferson",
+          "team": "MIN",
+          "positions": [
+            "WR"
+          ],
+          "rank": 5,
+          "years_exp": 5,
+          "age": 26,
+          "injury_status": "Questionable",
+          "adp": 3.2,
+          "adp_trend": "stable",
+          "bye_week": 6,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 29.8
+        },
+        {
+          "player_id": "6786",
+          "name": "CeeDee Lamb",
+          "team": "DAL",
+          "positions": [
+            "WR"
+          ],
+          "rank": 6,
+          "years_exp": 5,
+          "age": 26,
+          "injury_status": null,
+          "adp": 2.8,
+          "adp_trend": "stable",
+          "bye_week": 7,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 31.8
+        },
+        {
+          "player_id": "9493",
+          "name": "Puka Nacua",
+          "team": "LAR",
+          "positions": [
+            "WR"
+          ],
+          "rank": 6,
+          "years_exp": 2,
+          "age": 24,
+          "injury_status": null,
+          "adp": 13.7,
+          "adp_trend": "rising",
+          "bye_week": 6,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 29.2
+        },
+        {
+          "player_id": "7547",
+          "name": "Amon-Ra St. Brown",
+          "team": "DET",
+          "positions": [
+            "WR"
+          ],
+          "rank": 6,
+          "years_exp": 4,
+          "age": 25,
+          "injury_status": null,
+          "adp": 12.1,
+          "adp_trend": "rising",
+          "bye_week": 5,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 28.3
+        }
+      ],
+      "count_available": 1227
+    },
+    "TE": {
+      "top_players": [
+        {
+          "player_id": "8130",
+          "name": "Trey McBride",
+          "team": "ARI",
+          "positions": [
+            "TE"
+          ],
+          "rank": 22,
+          "years_exp": 3,
+          "age": 25,
+          "injury_status": null,
+          "adp": 26.4,
+          "bye_week": 11,
+          "playoff_outlook": "difficult",
+          "fantasy_score": 25.0
+        },
+        {
+          "player_id": "10859",
+          "name": "Sam LaPorta",
+          "team": "DET",
+          "positions": [
+            "TE"
+          ],
+          "rank": 40,
+          "years_exp": 2,
+          "age": 24,
+          "injury_status": null,
+          "adp": 49.1,
+          "adp_trend": "stable",
+          "bye_week": 5,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 23.0
+        },
+        {
+          "player_id": "5844",
+          "name": "T.J. Hockenson",
+          "team": "MIN",
+          "positions": [
+            "TE"
+          ],
+          "rank": 58,
+          "years_exp": 6,
+          "age": 28,
+          "injury_status": "Questionable",
+          "adp": 69.6,
+          "bye_week": 6,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 21.2
+        },
+        {
+          "player_id": "12518",
+          "name": "Tyler Warren",
+          "team": "IND",
+          "positions": [
+            "TE"
+          ],
+          "rank": 65,
+          "years_exp": 0,
+          "age": 23,
+          "injury_status": null,
+          "adp": 78.0,
+          "bye_week": 14,
+          "playoff_outlook": "neutral",
+          "fantasy_score": 17.1
+        },
+        {
+          "player_id": "1466",
+          "name": "Travis Kelce",
+          "team": "KC",
+          "positions": [
+            "TE"
+          ],
+          "rank": 67,
+          "years_exp": 12,
+          "age": 35,
+          "injury_status": null,
+          "adp": 17.1,
+          "adp_trend": "falling",
+          "bye_week": 6,
+          "playoff_outlook": "favorable",
+          "fantasy_score": 24.9
+        }
+      ],
+      "count_available": 583
+    }
+  },
+  "ai_recommendations": "\n\ud83c\udfaf **Quick Analysis** (Fallback):\n\nBased on your question: \"I'm about to pick at position 23. \n            Here are the top 10 available players: [\"Ja'Marr Chase\", 'Saquon Barkley', 'Josh Allen', 'Lamar Jackson', 'Bijan Robinson', 'Jayden Daniels', 'Jahmyr Gibbs', 'Justin Jefferson', 'CeeDee Lamb', 'Puka Nacua'].\n            Give me your top 3 recommendations with brief reasoning for each.\"\n\nFor SUPERFLEX leagues, remember:\n- QBs are premium (Josh Allen, Lamar Jackson worth early picks)\n- Positional scarcity matters more than standard leagues\n- Target 2-3 QBs by round 7\n\nCurrent recommendation: Focus on proven performers with high floors in SUPERFLEX format.\n\n\u26a0\ufe0f For detailed analysis, the full multi-agent system is available but may take longer.\n            ",
+  "top_overall": [
+    {
+      "player_id": "7564",
+      "name": "Ja'Marr Chase",
+      "team": "CIN",
+      "positions": [
+        "WR"
+      ],
+      "rank": 1,
+      "years_exp": 4,
+      "age": 25,
+      "injury_status": null,
+      "adp": 11.3,
+      "adp_trend": "stable",
+      "bye_week": 12,
+      "playoff_outlook": "neutral",
+      "fantasy_score": 26.8
+    },
+    {
+      "player_id": "4866",
+      "name": "Saquon Barkley",
+      "team": "PHI",
+      "positions": [
+        "RB"
+      ],
+      "rank": 2,
+      "years_exp": 7,
+      "age": 28,
+      "injury_status": null,
+      "adp": 1.2,
+      "adp_trend": "rising",
+      "bye_week": 5,
+      "playoff_outlook": "favorable",
+      "fantasy_score": 31.2
+    },
+    {
+      "player_id": "4984",
+      "name": "Josh Allen",
+      "team": "BUF",
+      "positions": [
+        "QB"
+      ],
+      "rank": 2,
+      "years_exp": 7,
+      "age": 29,
+      "injury_status": null,
+      "adp": 2.1,
+      "adp_trend": "stable",
+      "bye_week": 12,
+      "playoff_outlook": "favorable",
+      "fantasy_score": 29.2
+    },
+    {
+      "player_id": "4881",
+      "name": "Lamar Jackson",
+      "team": "BAL",
+      "positions": [
+        "QB"
+      ],
+      "rank": 3,
+      "years_exp": 7,
+      "age": 28,
+      "injury_status": null,
+      "adp": 3.5,
+      "adp_trend": "stable",
+      "bye_week": 14,
+      "playoff_outlook": "favorable",
+      "fantasy_score": 29.0
+    },
+    {
+      "player_id": "9509",
+      "name": "Bijan Robinson",
+      "team": "ATL",
+      "positions": [
+        "RB"
+      ],
+      "rank": 3,
+      "years_exp": 2,
+      "age": 23,
+      "injury_status": null,
+      "adp": 8.2,
+      "adp_trend": "stable",
+      "bye_week": 12,
+      "playoff_outlook": "neutral",
+      "fantasy_score": 26.8
+    }
+  ]
+}

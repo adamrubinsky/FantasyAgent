@@ -161,9 +161,10 @@ def league():
 @cli.command()
 @click.option('--position', '-p', help='Filter available players by position (QB, RB, WR, TE)')
 @click.option('--no-available', is_flag=True, help='Hide available players table')
-def monitor(position, no_available):
+@click.option('--enhanced', '-e', is_flag=True, help='Show enhanced data (ADP, bye weeks, playoff outlook)')
+def monitor(position, no_available, enhanced):
     """🚨 Start real-time draft monitoring (polls every 5 seconds)"""
-    asyncio.run(start_draft_monitoring(position, not no_available))
+    asyncio.run(start_draft_monitoring(position, not no_available, enhanced))
 
 
 @cli.command()
@@ -172,17 +173,33 @@ def status():
     asyncio.run(show_draft_status())
 
 
-async def start_draft_monitoring(position_filter: str = None, show_available: bool = True):
+@cli.command()
+@click.option('--pick', '-p', type=int, help='Current pick number to analyze')
+def precompute(pick):
+    """🎯 Run pre-computation analysis for upcoming pick"""
+    asyncio.run(run_precomputation_analysis(pick))
+
+
+async def start_draft_monitoring(position_filter: str = None, show_available: bool = True, enhanced: bool = False):
     """Start the real-time draft monitor"""
     username = os.getenv('SLEEPER_USERNAME')
     league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    api_key = os.getenv('ANTHROPIC_API_KEY')
     
     if not username or not league_id:
         console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
         return
     
-    async with DraftMonitor(username, league_id) as monitor:
-        await monitor.start_monitoring(show_available, position_filter)
+    if enhanced:
+        console.print("🚀 Enhanced monitoring mode: ADP, bye weeks, and playoff outlook enabled", style="cyan")
+    
+    if api_key:
+        console.print("🎯 Pre-computation engine will be enabled (AI analysis when 3 picks away)", style="green")
+    else:
+        console.print("⚠️ No ANTHROPIC_API_KEY - pre-computation engine disabled", style="yellow")
+    
+    async with DraftMonitor(username, league_id, api_key) as monitor:
+        await monitor.start_monitoring(show_available, position_filter, enhanced)
 
 
 async def show_draft_status():
@@ -204,6 +221,55 @@ async def show_draft_status():
             console.print(recent_picks)
         else:
             console.print("❌ Could not initialize draft", style="red")
+
+
+async def run_precomputation_analysis(pick: int = None):
+    """Run pre-computation analysis manually"""
+    username = os.getenv('SLEEPER_USERNAME')
+    league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    
+    if not username or not league_id:
+        console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
+        return
+    
+    if not api_key:
+        console.print("❌ Please set ANTHROPIC_API_KEY in .env file for pre-computation", style="red")
+        return
+    
+    if not pick:
+        console.print("❌ Please specify a pick number with --pick", style="red")
+        return
+    
+    console.print(f"🎯 Running pre-computation analysis for pick {pick}...", style="cyan")
+    
+    try:
+        from core.pre_computation import PreComputationEngine
+        
+        async with PreComputationEngine(username, league_id, api_key) as engine:
+            # Initialize
+            success = await engine.initialize_draft_context()
+            if not success:
+                console.print("❌ Failed to initialize pre-computation engine", style="red")
+                return
+            
+            # Check if we should pre-compute for this pick
+            picks_until_turn = engine.calculate_picks_until_user_turn(pick)
+            console.print(f"📊 Picks until your turn: {picks_until_turn}")
+            
+            # Run pre-computation
+            cache_data = await engine.run_precomputation(pick)
+            
+            if 'error' in cache_data:
+                console.print(f"❌ Pre-computation failed: {cache_data['error']}", style="red")
+                return
+            
+            # Display results
+            formatted_results = engine.format_quick_recommendations(cache_data)
+            console.print("\n" + formatted_results)
+            
+    except Exception as e:
+        console.print(f"❌ Error: {e}", style="red")
 
 
 @cli.command()

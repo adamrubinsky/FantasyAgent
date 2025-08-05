@@ -17,6 +17,7 @@ from rich.columns import Columns
 from rich.text import Text
 
 from api.sleeper_client import SleeperClient
+from core.pre_computation import PreComputationEngine
 
 
 class DraftMonitor:
@@ -33,9 +34,10 @@ class DraftMonitor:
     This is the core component for draft day - it needs to be rock solid!
     """
     
-    def __init__(self, username: str, league_id: str):
+    def __init__(self, username: str, league_id: str, anthropic_api_key: str = None):
         self.username = username
         self.league_id = league_id
+        self.anthropic_api_key = anthropic_api_key
         self.console = Console()
         
         # Draft state tracking
@@ -53,17 +55,42 @@ class DraftMonitor:
         # Sleeper client for API calls
         self.client: Optional[SleeperClient] = None
         
+        # Pre-computation engine (optional)
+        self.precomp_engine: Optional[PreComputationEngine] = None
+        self.precomp_enabled = False
+        
         # Track which players have been drafted (for quick lookups)
         self.drafted_players: Set[str] = set()
         
     async def __aenter__(self):
-        """Async context manager entry - initialize Sleeper client"""
+        """Async context manager entry - initialize Sleeper client and pre-computation engine"""
         self.client = SleeperClient(self.username, self.league_id)
         await self.client.__aenter__()
+        
+        # Initialize pre-computation engine if API key provided
+        if self.anthropic_api_key:
+            try:
+                self.precomp_engine = PreComputationEngine(
+                    self.username, self.league_id, self.anthropic_api_key
+                )
+                await self.precomp_engine.__aenter__()
+                
+                # Initialize draft context for pre-computation
+                success = await self.precomp_engine.initialize_draft_context()
+                if success:
+                    self.precomp_enabled = True
+                    self.console.print("🎯 Pre-computation engine enabled", style="green")
+                else:
+                    self.console.print("⚠️ Pre-computation engine initialization failed", style="yellow")
+            except Exception as e:
+                self.console.print(f"⚠️ Pre-computation engine error: {e}", style="yellow")
+        
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - cleanup Sleeper client"""
+        """Async context manager exit - cleanup Sleeper client and pre-computation engine"""
+        if self.precomp_engine:
+            await self.precomp_engine.__aexit__(exc_type, exc_val, exc_tb)
         if self.client:
             await self.client.__aexit__(exc_type, exc_val, exc_tb)
     
@@ -365,7 +392,7 @@ class DraftMonitor:
         
         return Panel(table, title="📝 Recent Picks")
     
-    async def start_monitoring(self, show_available: bool = True, position_filter: str = None):
+    async def start_monitoring(self, show_available: bool = True, position_filter: str = None, enhanced: bool = False):
         """
         Start the real-time draft monitoring loop
         
@@ -394,7 +421,7 @@ class DraftMonitor:
                         # Check for new picks
                         new_picks = await self.check_for_new_picks()
                         
-                        # Alert for new picks
+                        # Alert for new picks and trigger pre-computation
                         if new_picks:
                             for pick in new_picks:
                                 players = await self.client.get_all_players()
@@ -409,6 +436,17 @@ class DraftMonitor:
                                         f"🚨 NEW PICK: {name} ({positions}) - {team} [Pick #{pick.get('pick_no', '?')}]",
                                         style="bold yellow"
                                     )
+                            
+                            # Check if we should trigger pre-computation
+                            if self.precomp_enabled and self.current_pick:
+                                should_precompute = await self.precomp_engine.should_start_precomputation(self.current_pick)
+                                if should_precompute:
+                                    # Run pre-computation in background (don't block display)
+                                    asyncio.create_task(self._run_background_precomputation())
+                                
+                                # Invalidate cache if picks affect recommendations
+                                if hasattr(self.precomp_engine, 'cached_recommendations') and self.precomp_engine.cached_recommendations:
+                                    self.precomp_engine.invalidate_cache("New picks made")
                         
                         # Create display panels
                         draft_status = self.create_draft_status_display()
@@ -419,7 +457,7 @@ class DraftMonitor:
                         
                         # Add available players if requested
                         if show_available:
-                            available_players = await self._create_available_players_display(position_filter)
+                            available_players = await self._create_available_players_display(position_filter, enhanced)
                             display_content = [main_display, available_players]
                         else:
                             display_content = [main_display]
@@ -442,36 +480,78 @@ class DraftMonitor:
         finally:
             await self._save_draft_state()
     
-    async def _create_available_players_display(self, position_filter: str = None) -> Panel:
-        """Create display panel for available players"""
+    async def _create_available_players_display(self, position_filter: str = None, enhanced: bool = False) -> Panel:
+        """Create display panel for available players with optional enhanced data"""
         try:
-            available_players = await self.client.get_available_players(self.draft_id, position_filter)
+            available_players = await self.client.get_available_players(self.draft_id, position_filter, enhanced)
             
             if not available_players:
                 return Panel("No available players found", title="🔍 Available Players")
             
-            # Create table
+            # Create table with enhanced columns if requested
             table = Table(show_header=True, header_style="bold cyan")
             table.add_column("Rank", width=4)
-            table.add_column("Player", width=18)
-            table.add_column("Pos", width=6)
+            table.add_column("Player", width=16)
+            table.add_column("Pos", width=4)
             table.add_column("Team", width=4)
-            table.add_column("Exp", width=3)
+            
+            if enhanced:
+                table.add_column("ADP", width=5, style="magenta")
+                table.add_column("Bye", width=3, style="yellow")
+                table.add_column("P/O", width=4, style="red")  # Playoff Outlook abbreviated
+                table.add_column("Score", width=5, style="bright_green")
+            else:
+                table.add_column("Exp", width=3)
             
             # Show top 10 available players
             for player in available_players[:10]:
                 rank = str(player['rank']) if player['rank'] < 999 else "N/A"
                 positions = "/".join(player['positions'])
                 team = player['team'] or "FA"
-                exp = f"{player['years_exp']}y" if player.get('years_exp') else "R"
                 
-                table.add_row(rank, player['name'], positions, team, exp)
+                if enhanced:
+                    adp = f"{player.get('adp', 0):.0f}" if player.get('adp') else 'N/A'
+                    bye_week = str(player.get('bye_week', 'N/A'))
+                    playoff = player.get('playoff_outlook', 'unk')[:3]  # Abbreviated
+                    fantasy_score = f"{player.get('fantasy_score', 0):.1f}"
+                    
+                    table.add_row(rank, player['name'], positions, team, adp, bye_week, playoff, fantasy_score)
+                else:
+                    exp = f"{player['years_exp']}y" if player.get('years_exp') else "R"
+                    table.add_row(rank, player['name'], positions, team, exp)
             
-            title = f"🔍 Available Players{f' ({position_filter})' if position_filter else ''}"
+            title_suffix = f" ({position_filter})" if position_filter else ""
+            title_suffix += " - Enhanced" if enhanced else ""
+            title = f"🔍 Available Players{title_suffix}"
+            
             return Panel(table, title=title)
             
         except Exception as e:
             return Panel(f"Error loading players: {e}", title="🔍 Available Players", style="red")
+    
+    async def _run_background_precomputation(self):
+        """Run pre-computation in background without blocking the UI"""
+        try:
+            if not self.precomp_enabled or not self.current_pick:
+                return
+            
+            self.console.print("🎯 Starting pre-computation analysis...", style="cyan")
+            await self.precomp_engine.run_precomputation(self.current_pick)
+            self.console.print("✅ Pre-computation complete - recommendations ready!", style="green")
+            
+        except Exception as e:
+            self.console.print(f"⚠️ Pre-computation failed: {e}", style="yellow")
+    
+    async def get_precomputed_recommendations(self) -> Optional[str]:
+        """Get pre-computed recommendations if available"""
+        if not self.precomp_enabled:
+            return None
+        
+        cache_data = self.precomp_engine.get_cached_recommendations()
+        if cache_data:
+            return self.precomp_engine.format_quick_recommendations(cache_data)
+        
+        return None
 
 
 # Test function for development
