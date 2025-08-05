@@ -45,8 +45,17 @@ This means:
 ## Available Commands
 
 ```bash
+# Setup & Testing
 python3 main.py test                    # Test connections
 python3 main.py league                  # League details
+
+# Draft Day Commands
+python3 main.py monitor                 # 🚨 Start real-time draft monitoring
+python3 main.py monitor -p QB           # Monitor with QB filter
+python3 main.py monitor --no-available  # Monitor without available players table
+python3 main.py status                  # Show current draft status (one-time)
+
+# Player Analysis
 python3 main.py available               # All players (top 20)
 python3 main.py available -p QB -l 10   # Top 10 QBs
 python3 main.py available -p RB -l 15   # Top 15 RBs

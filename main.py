@@ -19,6 +19,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from api.sleeper_client import SleeperClient, test_sleeper_connection
+from core.draft_monitor import DraftMonitor
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials
@@ -115,6 +116,54 @@ def league():
     asyncio.run(show_league_info())
 
 
+@cli.command()
+@click.option('--position', '-p', help='Filter available players by position (QB, RB, WR, TE)')
+@click.option('--no-available', is_flag=True, help='Hide available players table')
+def monitor(position, no_available):
+    """🚨 Start real-time draft monitoring (polls every 5 seconds)"""
+    asyncio.run(start_draft_monitoring(position, not no_available))
+
+
+@cli.command()
+def status():
+    """Show current draft status without monitoring"""
+    asyncio.run(show_draft_status())
+
+
+async def start_draft_monitoring(position_filter: str = None, show_available: bool = True):
+    """Start the real-time draft monitor"""
+    username = os.getenv('SLEEPER_USERNAME')
+    league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    
+    if not username or not league_id:
+        console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
+        return
+    
+    async with DraftMonitor(username, league_id) as monitor:
+        await monitor.start_monitoring(show_available, position_filter)
+
+
+async def show_draft_status():
+    """Show draft status without live monitoring"""
+    username = os.getenv('SLEEPER_USERNAME')
+    league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    
+    if not username or not league_id:
+        console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
+        return
+    
+    async with DraftMonitor(username, league_id) as monitor:
+        if await monitor.initialize_draft():
+            # Show draft status
+            status_panel = monitor.create_draft_status_display()
+            recent_picks = await monitor.create_recent_picks_display()
+            
+            console.print(status_panel)
+            console.print(recent_picks)
+        else:
+            console.print("❌ Could not initialize draft", style="red")
+
+
 async def show_league_info():
     """Display league information in a nice format"""
     username = os.getenv('SLEEPER_USERNAME')
@@ -173,6 +222,6 @@ async def show_league_info():
 if __name__ == "__main__":
     # Add some startup info
     console.print("🏈 Fantasy Football Draft Assistant", style="bold blue")
-    console.print("Day 1 (Aug 5) - Basic Setup & Sleeper Connection\n", style="dim")
+    console.print("Day 2 (Aug 6) - Real-time Draft Monitoring\n", style="dim")
     
     cli()

@@ -106,6 +106,8 @@ Building an AI-powered fantasy football draft assistant that provides real-time 
 - Player comparison tool
 - ADP value indicators
 - Tier break notifications
+- **Enhanced player data**: ADP, bye weeks, playoff matchups (Weeks 14-16), projected fantasy points
+- **Advanced table columns**: Strength of schedule, target share, red zone touches
 
 **Nice to Have** (Post-MVP):
 - Web UI
