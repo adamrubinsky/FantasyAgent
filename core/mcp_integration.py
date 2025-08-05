@@ -13,6 +13,9 @@ from pathlib import Path
 import asyncio
 import aiohttp
 
+# Import league context manager
+from core.league_context import league_manager, LeagueSettings
+
 # For local development, we'll import and use the MCP server directly
 # In production, this would make HTTP calls to the AgentCore-hosted MCP server
 import sys
@@ -125,11 +128,20 @@ class MCPClient:
             except Exception as e:
                 return {"error": f"MCP call error: {str(e)}"}
     
-    async def get_rankings(self, scoring_format: str = "half_ppr", 
-                          league_type: str = "superflex",
+    async def get_rankings(self, scoring_format: str = None, 
+                          league_type: str = None,
                           position: str = None,
                           limit: int = 50) -> Dict[str, Any]:
-        """Get consensus rankings from FantasyPros MCP server"""
+        """Get consensus rankings from FantasyPros MCP server using league context"""
+        # Use league context if available, otherwise use defaults
+        context = league_manager.get_current_context()
+        if context:
+            scoring_format = scoring_format or context.scoring_format
+            league_type = league_type or ('superflex' if context.is_superflex else 'standard')
+        else:
+            scoring_format = scoring_format or "half_ppr"
+            league_type = league_type or "superflex"
+        
         return await self.call_tool(
             "get_rankings",
             scoring_format=scoring_format,
@@ -140,8 +152,15 @@ class MCPClient:
     
     async def get_projections(self, player_names: List[str],
                              week: str = "season",
-                             scoring_format: str = "half_ppr") -> Dict[str, Any]:
-        """Get player projections from FantasyPros MCP server"""
+                             scoring_format: str = None) -> Dict[str, Any]:
+        """Get player projections from FantasyPros MCP server using league context"""
+        # Use league context if available
+        context = league_manager.get_current_context()
+        if context:
+            scoring_format = scoring_format or context.scoring_format
+        else:
+            scoring_format = scoring_format or "half_ppr"
+        
         return await self.call_tool(
             "get_projections",
             player_names=player_names,

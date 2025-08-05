@@ -62,8 +62,11 @@ python3 main.py available -p RB -l 15   # Top 15 RBs
 python3 main.py available -p WR -l 20   # Top 20 WRs
 python3 main.py available -p TE -l 5    # Top 5 TEs
 
+# League Setup (IMPORTANT - Run this first!)
+python3 main.py setup                   # Analyze your league settings (Half-PPR, SUPERFLEX, etc.)
+
 # FantasyPros Rankings & Strategy (NEW in Day 3!)
-python3 main.py rankings                # Top 20 consensus rankings
+python3 main.py rankings                # Top 20 consensus rankings (tailored to YOUR league!)
 python3 main.py rankings -p QB -l 10    # Top 10 QB rankings with ADP/tiers
 python3 main.py strategy                # SUPERFLEX draft strategy guide
 python3 main.py value -p 85             # Find value picks at draft pick #85

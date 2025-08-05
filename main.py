@@ -21,10 +21,20 @@ sys.path.insert(0, str(project_root))
 from api.sleeper_client import SleeperClient, test_sleeper_connection
 from core.draft_monitor import DraftMonitor
 from core.mcp_integration import MCPClient, EnhancedRankingsManager
+from core.league_context import league_manager
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials
 load_dotenv()              # Fallback to .env (with placeholders)
+
+# Initialize league context on startup
+def initialize_league_context():
+    """Try to load the default league context"""
+    league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    if league_id and league_id in league_manager.contexts:
+        league_manager.current_context = league_manager.contexts[league_id]
+
+initialize_league_context()
 
 console = Console()
 
@@ -180,6 +190,13 @@ def strategy():
 
 
 @cli.command()
+@click.option('--league-id', '-l', help='Specific league ID to analyze')
+def setup(league_id):
+    """Analyze and setup league-specific settings"""
+    asyncio.run(setup_league_context(league_id))
+
+
+@cli.command()
 @click.option('--pick', '-p', required=True, type=int, help='Current draft pick number')
 @click.option('--limit', '-l', default=10, help='Number of available players to analyze')
 def value(pick, limit):
@@ -187,14 +204,54 @@ def value(pick, limit):
     asyncio.run(show_value_picks(pick, limit))
 
 
+async def setup_league_context(league_id: str = None):
+    """Setup league-specific context and settings"""
+    # Use provided league ID or fall back to environment
+    league_id = league_id or os.getenv('SLEEPER_LEAGUE_ID')
+    
+    if not league_id:
+        console.print("❌ Please provide league ID with -l or set SLEEPER_LEAGUE_ID", style="red")
+        return
+    
+    console.print(f"🔍 Analyzing league settings for {league_id}...", style="yellow")
+    
+    try:
+        # Analyze and set current league context
+        settings = await league_manager.set_current_league(league_id)
+        
+        # Display results
+        console.print(f"\n✅ League Context Configured", style="bold green")
+        console.print(f"📋 League: {settings.league_name}")
+        console.print(f"🏆 Platform: {settings.platform.title()}")
+        console.print(f"📊 Scoring: {settings.scoring_format.upper()}")
+        console.print(f"👥 Teams: {settings.total_teams}")
+        console.print(f"🎯 SUPERFLEX: {'YES' if settings.is_superflex else 'NO'}")
+        console.print(f"🏈 QB spots: {settings.total_qb_spots}")
+        
+        # Show position scarcity
+        scarcity = settings.get_position_scarcity()
+        console.print(f"\n🎯 Position Values (higher = more scarce):", style="bold cyan")
+        for pos, value in sorted(scarcity.items(), key=lambda x: x[1], reverse=True):
+            console.print(f"  {pos}: {value:.2f}")
+        
+        console.print(f"\n💡 Rankings will now be tailored to your league settings!", style="bold blue")
+        
+    except Exception as e:
+        console.print(f"❌ Error analyzing league: {e}", style="red")
+
+
 async def show_rankings(position: str = None, limit: int = 20):
-    """Display FantasyPros rankings"""
-    console.print("📊 Fetching FantasyPros consensus rankings...", style="yellow")
+    """Display FantasyPros rankings tailored to your league"""
+    # Ensure we have league context
+    context = league_manager.get_current_context()
+    if not context:
+        console.print("⚠️ No league context set. Run 'python3 main.py setup' first.", style="yellow")
+        console.print("📊 Using default settings (SUPERFLEX, Half-PPR)...", style="dim")
+    else:
+        console.print(f"📊 Fetching rankings for {context.league_name} ({context.scoring_format.upper()})...", style="yellow")
     
     async with MCPClient() as mcp:
         rankings = await mcp.get_rankings(
-            scoring_format="half_ppr",
-            league_type="superflex",
             position=position,
             limit=limit
         )
@@ -203,8 +260,12 @@ async def show_rankings(position: str = None, limit: int = 20):
             console.print(f"❌ Error: {rankings['error']}", style="red")
             return
         
-        # Create table
-        title = f"FantasyPros Rankings{f' ({position})' if position else ''}"
+        # Create table with context info
+        context = league_manager.get_current_context()
+        if context:
+            title = f"{context.league_name} Rankings{f' ({position})' if position else ''}"
+        else:
+            title = f"FantasyPros Rankings{f' ({position})' if position else ''}"
         table = Table(title=title)
         table.add_column("Rank", style="cyan", width=4)
         table.add_column("Player", style="bold white", width=20)
