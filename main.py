@@ -20,6 +20,7 @@ sys.path.insert(0, str(project_root))
 
 from api.sleeper_client import SleeperClient, test_sleeper_connection
 from core.draft_monitor import DraftMonitor
+from core.mcp_integration import MCPClient, EnhancedRankingsManager
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials
@@ -164,6 +165,167 @@ async def show_draft_status():
             console.print("❌ Could not initialize draft", style="red")
 
 
+@cli.command()
+@click.option('--position', '-p', help='Filter by position (QB, RB, WR, TE)')
+@click.option('--limit', '-l', default=20, help='Number of players to show')
+def rankings(position, limit):
+    """Show FantasyPros consensus rankings with ADP and tiers"""
+    asyncio.run(show_rankings(position, limit))
+
+
+@cli.command()
+def strategy():
+    """Get SUPERFLEX draft strategy advice"""
+    asyncio.run(show_strategy())
+
+
+@cli.command()
+@click.option('--pick', '-p', required=True, type=int, help='Current draft pick number')
+@click.option('--limit', '-l', default=10, help='Number of available players to analyze')
+def value(pick, limit):
+    """Find value picks based on ADP analysis"""
+    asyncio.run(show_value_picks(pick, limit))
+
+
+async def show_rankings(position: str = None, limit: int = 20):
+    """Display FantasyPros rankings"""
+    console.print("📊 Fetching FantasyPros consensus rankings...", style="yellow")
+    
+    async with MCPClient() as mcp:
+        rankings = await mcp.get_rankings(
+            scoring_format="half_ppr",
+            league_type="superflex",
+            position=position,
+            limit=limit
+        )
+        
+        if 'error' in rankings:
+            console.print(f"❌ Error: {rankings['error']}", style="red")
+            return
+        
+        # Create table
+        title = f"FantasyPros Rankings{f' ({position})' if position else ''}"
+        table = Table(title=title)
+        table.add_column("Rank", style="cyan", width=4)
+        table.add_column("Player", style="bold white", width=20)
+        table.add_column("Pos", style="green", width=4)
+        table.add_column("Team", style="blue", width=4)
+        table.add_column("ADP", style="yellow", width=6)
+        table.add_column("Tier", style="magenta", width=4)
+        
+        # Add rows
+        for player in rankings.get('players', []):
+            table.add_row(
+                str(player['rank']),
+                player['name'],
+                player['position'],
+                player['team'],
+                f"{player['adp']:.1f}",
+                str(player['tier'])
+            )
+        
+        console.print(table)
+        
+        # Show metadata
+        console.print(f"\n📈 Format: {rankings.get('format', 'N/A')} {rankings.get('scoring', 'N/A')}")
+        console.print(f"🕐 Last updated: {rankings.get('last_updated', 'N/A')}")
+
+
+async def show_strategy():
+    """Display SUPERFLEX strategy advice"""
+    console.print("🏈 Getting SUPERFLEX draft strategy...", style="yellow")
+    
+    async with MCPClient() as mcp:
+        strategy = await mcp.get_superflex_strategy()
+        
+        # Strategy overview
+        console.print(f"\n🎯 {strategy['strategy']}", style="bold green")
+        
+        # Key points
+        console.print("\n📝 Key Strategy Points:", style="bold cyan")
+        for i, point in enumerate(strategy.get('key_points', []), 1):
+            console.print(f"  {i}. {point}")
+        
+        # Position targets
+        console.print("\n🎯 Position Targets:", style="bold cyan")
+        for pos, target in strategy.get('position_targets', {}).items():
+            console.print(f"  {pos}: {target}")
+        
+        # Round-by-round guide
+        console.print("\n📊 Round-by-Round Guide:", style="bold cyan")
+        for rounds, advice in strategy.get('round_by_round', {}).items():
+            console.print(f"  Rounds {rounds}: {advice}")
+
+
+async def show_value_picks(current_pick: int, limit: int = 10):
+    """Show value picks based on ADP analysis"""
+    username = os.getenv('SLEEPER_USERNAME')
+    league_id = os.getenv('SLEEPER_LEAGUE_ID')
+    
+    if not username or not league_id:
+        console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
+        return
+    
+    console.print(f"💰 Finding value picks at pick #{current_pick}...", style="yellow")
+    
+    async with SleeperClient(username=username, league_id=league_id) as sleeper_client:
+        async with MCPClient() as mcp:
+            # Get available players from current draft
+            league = await sleeper_client.get_league_info()
+            draft_id = league.get('draft_id')
+            
+            if not draft_id:
+                console.print("❌ No draft found for this league", style="red")
+                return
+            
+            available_players = await sleeper_client.get_available_players(draft_id)
+            
+            # Get player names for top available players
+            player_names = [p['name'] for p in available_players[:50]]  # Top 50 available
+            
+            # Get ADP analysis
+            adp_analysis = await mcp.get_adp_analysis(
+                current_pick=current_pick,
+                available_players=player_names,
+                scoring_format="half_ppr"
+            )
+            
+            if 'error' in adp_analysis:
+                console.print(f"❌ Error: {adp_analysis['error']}", style="red")
+                return
+            
+            # Show results
+            console.print(f"\n📊 ADP Analysis for Pick #{current_pick}", style="bold")
+            
+            # Value picks
+            value_picks = adp_analysis.get('value_picks', [])
+            if value_picks:
+                console.print("\n💰 VALUE PICKS (Available later than ADP):", style="bold green")
+                table = Table()
+                table.add_column("Player", style="bold white")
+                table.add_column("Pos", style="green")
+                table.add_column("ADP", style="yellow")
+                table.add_column("Value", style="cyan")
+                table.add_column("Rec", style="bold green")
+                
+                for pick in value_picks[:limit]:
+                    table.add_row(
+                        pick['name'],
+                        pick['position'],
+                        f"{pick['adp']:.1f}",
+                        f"+{pick['value_differential']:.0f}",
+                        pick['recommendation']
+                    )
+                console.print(table)
+            else:
+                console.print("💰 No clear value picks available at current pick", style="yellow")
+            
+            # Best overall recommendation
+            best_value = adp_analysis.get('best_value')
+            if best_value:
+                console.print(f"\n⭐ BEST VALUE: {best_value['name']} ({best_value['position']}) - {best_value['recommendation']}", style="bold green")
+
+
 async def show_league_info():
     """Display league information in a nice format"""
     username = os.getenv('SLEEPER_USERNAME')
@@ -222,6 +384,6 @@ async def show_league_info():
 if __name__ == "__main__":
     # Add some startup info
     console.print("🏈 Fantasy Football Draft Assistant", style="bold blue")
-    console.print("Day 2 (Aug 6) - Real-time Draft Monitoring\n", style="dim")
+    console.print("Day 3 (Aug 7) - FantasyPros Rankings Integration\n", style="dim")
     
     cli()
