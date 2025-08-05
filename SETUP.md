@@ -65,11 +65,16 @@ python3 main.py available -p TE -l 5    # Top 5 TEs
 # League Setup (IMPORTANT - Run this first!)
 python3 main.py setup                   # Analyze your league settings (Half-PPR, SUPERFLEX, etc.)
 
-# FantasyPros Rankings & Strategy (NEW in Day 3!)
+# FantasyPros Rankings & Strategy
 python3 main.py rankings                # Top 20 consensus rankings (tailored to YOUR league!)
 python3 main.py rankings -p QB -l 10    # Top 10 QB rankings with ADP/tiers
 python3 main.py strategy                # SUPERFLEX draft strategy guide
 python3 main.py value -p 85             # Find value picks at draft pick #85
+
+# AI-Powered Analysis (NEW in Day 4!) 🤖
+python3 main.py ask "Should I draft Josh Allen in round 1?"        # Natural language questions
+python3 main.py compare "Josh Allen" "Lamar Jackson"               # AI player comparisons
+python3 main.py recommend -p 37                                    # AI draft recommendations
 ```
 
 ## Getting Your Sleeper Info
@@ -81,6 +86,33 @@ python3 main.py value -p 85             # Find value picks at draft pick #85
    - Example: `https://sleeper.app/leagues/1234567890123456789`
    - League ID is: `1234567890123456789`
 
+## AI Features Setup (Optional but Recommended!)
+
+To enable AI-powered analysis and natural language queries:
+
+1. **Get Claude API Key**:
+   - Go to [console.anthropic.com](https://console.anthropic.com/)
+   - Sign up and get your API key
+
+2. **Add to Environment**:
+   ```bash
+   # Edit .env.local and add:
+   ANTHROPIC_API_KEY=your-actual-claude-api-key-here
+   ```
+
+3. **Install Package** (if not already installed):
+   ```bash
+   pip3 install --user anthropic
+   ```
+
+4. **Test AI Features**:
+   ```bash
+   python3 main.py ask "Should I draft Josh Allen?"
+   python3 main.py compare "Josh Allen" "Lamar Jackson"
+   ```
+
+**Without AI Setup**: All features work with fallback responses and guidance.
+
 ## Troubleshooting
 
 **"Please set SLEEPER_USERNAME..."**
@@ -90,7 +122,10 @@ python3 main.py value -p 85             # Find value picks at draft pick #85
 - Use `python3` instead of `python`
 
 **"No module named 'aiohttp'"**
-- Run: `pip3 install --user python-dotenv aiohttp click rich`
+- Run: `pip3 install --user python-dotenv aiohttp click rich anthropic`
+
+**"AI Assistant Unavailable"**
+- Add ANTHROPIC_API_KEY to .env.local (see AI Features Setup above)
 
 **SSL certificate errors**
 - This is handled automatically for macOS development

@@ -22,6 +22,7 @@ from api.sleeper_client import SleeperClient, test_sleeper_connection
 from core.draft_monitor import DraftMonitor
 from core.mcp_integration import MCPClient, EnhancedRankingsManager
 from core.league_context import league_manager
+from core.ai_assistant import FantasyAIAssistant
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials
@@ -202,6 +203,28 @@ def setup(league_id):
 def value(pick, limit):
     """Find value picks based on ADP analysis"""
     asyncio.run(show_value_picks(pick, limit))
+
+
+@cli.command()
+@click.argument('question', required=True)
+def ask(question):
+    """🤖 Ask AI assistant any fantasy football question"""
+    asyncio.run(ai_ask_question(question))
+
+
+@cli.command()
+@click.argument('player1', required=True)
+@click.argument('player2', required=True)
+def compare(player1, player2):
+    """🤖 AI-powered player comparison analysis"""
+    asyncio.run(ai_compare_players(player1, player2))
+
+
+@cli.command()
+@click.option('--pick', '-p', required=True, type=int, help='Current draft pick number')
+def recommend(pick):
+    """🤖 Get AI draft recommendation for current pick"""
+    asyncio.run(ai_draft_recommendation(pick))
 
 
 async def setup_league_context(league_id: str = None):
@@ -387,6 +410,44 @@ async def show_value_picks(current_pick: int, limit: int = 10):
                 console.print(f"\n⭐ BEST VALUE: {best_value['name']} ({best_value['position']}) - {best_value['recommendation']}", style="bold green")
 
 
+async def ai_ask_question(question: str):
+    """Handle AI question answering"""
+    console.print(f"🤖 Analyzing your question: \"{question}\"", style="yellow")
+    
+    assistant = FantasyAIAssistant()
+    response = await assistant.ask(question)
+    
+    console.print(f"\n🎯 AI Analysis:", style="bold cyan")
+    console.print(response)
+
+
+async def ai_compare_players(player1: str, player2: str):
+    """Handle AI player comparison"""
+    console.print(f"🤖 Comparing {player1} vs {player2}...", style="yellow")
+    
+    assistant = FantasyAIAssistant()
+    comparison = await assistant.compare_players(player1, player2)
+    
+    console.print(f"\n⚖️ Player Comparison: {player1} vs {player2}", style="bold cyan")
+    console.print(comparison)
+
+
+async def ai_draft_recommendation(current_pick: int):
+    """Handle AI draft recommendations"""
+    console.print(f"🤖 Analyzing draft options for pick #{current_pick}...", style="yellow")
+    
+    # Get league context
+    context = league_manager.get_current_context()
+    if context:
+        console.print(f"📋 League: {context.league_name} ({context.scoring_format.upper()})", style="dim")
+    
+    assistant = FantasyAIAssistant()
+    recommendation = await assistant.get_draft_recommendation(current_pick)
+    
+    console.print(f"\n🎯 AI Draft Recommendation for Pick #{current_pick}:", style="bold cyan")
+    console.print(recommendation)
+
+
 async def show_league_info():
     """Display league information in a nice format"""
     username = os.getenv('SLEEPER_USERNAME')
@@ -445,6 +506,6 @@ async def show_league_info():
 if __name__ == "__main__":
     # Add some startup info
     console.print("🏈 Fantasy Football Draft Assistant", style="bold blue")
-    console.print("Day 3 (Aug 7) - FantasyPros Rankings Integration\n", style="dim")
+    console.print("Day 4 (Aug 8) - AI-Powered Analysis with Claude\n", style="dim")
     
     cli()

@@ -15,7 +15,7 @@ rich==13.7.1
 pandas==2.1.4
 pydantic==2.5.2
 
-# Anthropic Claude API
+# Anthropic Claude API (for AI assistant)
 anthropic==0.21.3
 
 # Development and testing
