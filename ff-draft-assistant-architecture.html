@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Draft Assistant - Architecture Diagram</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .diagram-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+        svg {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .legend-box {
+            width: 30px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .details {
+            margin-top: 40px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #444;
+            margin-top: 0;
+        }
+        .component-list {
+            list-style: none;
+            padding: 0;
+        }
+        .component-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .component-list li:last-child {
+            border-bottom: none;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fantasy Football Draft Assistant - System Architecture</h1>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-box" style="background: #FF6B6B;"></div>
+                <span>External APIs</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #4ECDC4;"></div>
+                <span>AWS Services</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #95E1D3;"></div>
+                <span>Agent Framework</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #F38181;"></div>
+                <span>Storage</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #AA96DA;"></div>
+                <span>User Interface</span>
+            </div>
+        </div>
+        
+        <div class="diagram-container">
+            <svg width="1200" height="800" viewBox="0 0 1200 800">
+                <!-- External APIs Layer -->
+                <g id="external-apis">
+                    <rect x="50" y="50" width="200" height="80" fill="#FF6B6B" rx="8"/>
+                    <text x="150" y="85" text-anchor="middle" fill="white" font-weight="bold">Yahoo Fantasy API</text>
+                    <text x="150" y="105" text-anchor="middle" fill="white" font-size="12">OAuth 2.0</text>
+                    
+                    <rect x="280" y="50" width="200" height="80" fill="#FF6B6B" rx="8"/>
+                    <text x="380" y="85" text-anchor="middle" fill="white" font-weight="bold">Sleeper API</text>
+                    <text x="380" y="105" text-anchor="middle" fill="white" font-size="12">No Auth (Public)</text>
+                    
+                    <rect x="510" y="50" width="200" height="80" fill="#FF6B6B" rx="8"/>
+                    <text x="610" y="85" text-anchor="middle" fill="white" font-weight="bold">FantasyPros</text>
+                    <text x="610" y="105" text-anchor="middle" fill="white" font-size="12">MCP Server</text>
+                </g>
+                
+                <!-- MCP Gateway Layer -->
+                <g id="mcp-layer">
+                    <rect x="200" y="180" width="400" height="60" fill="#4ECDC4" rx="8"/>
+                    <text x="400" y="205" text-anchor="middle" fill="white" font-weight="bold">AgentCore Gateway</text>
+                    <text x="400" y="220" text-anchor="middle" fill="white" font-size="12">MCP Protocol Conversion</text>
+                </g>
+                
+                <!-- Agent Runtime Layer -->
+                <g id="agent-runtime">
+                    <rect x="100" y="290" width="600" height="200" fill="#4ECDC4" rx="8" fill-opacity="0.3" stroke="#4ECDC4" stroke-width="2"/>
+                    <text x="400" y="310" text-anchor="middle" font-weight="bold">AWS Bedrock AgentCore Runtime</text>
+                    
+                    <!-- CrewAI Agents -->
+                    <rect x="120" y="330" width="140" height="60" fill="#95E1D3" rx="6"/>
+                    <text x="190" y="355" text-anchor="middle" font-weight="bold">Data Collector</text>
+                    <text x="190" y="375" text-anchor="middle" font-size="12">Agent</text>
+                    
+                    <rect x="280" y="330" width="140" height="60" fill="#95E1D3" rx="6"/>
+                    <text x="350" y="355" text-anchor="middle" font-weight="bold">Analysis</text>
+                    <text x="350" y="375" text-anchor="middle" font-size="12">Agent</text>
+                    
+                    <rect x="440" y="330" width="140" height="60" fill="#95E1D3" rx="6"/>
+                    <text x="510" y="355" text-anchor="middle" font-weight="bold">Strategy</text>
+                    <text x="510" y="375" text-anchor="middle" font-size="12">Agent</text>
+                    
+                    <rect x="360" y="410" width="140" height="60" fill="#95E1D3" rx="6"/>
+                    <text x="430" y="435" text-anchor="middle" font-weight="bold">Recommendation</text>
+                    <text x="430" y="455" text-anchor="middle" font-size="12">Agent</text>
+                </g>
+                
+                <!-- Storage Layer -->
+                <g id="storage">
+                    <rect x="750" y="290" width="180" height="80" fill="#F38181" rx="8"/>
+                    <text x="840" y="320" text-anchor="middle" fill="white" font-weight="bold">AgentCore Memory</text>
+                    <text x="840" y="340" text-anchor="middle" fill="white" font-size="12">Hot Data</text>
+                    <text x="840" y="355" text-anchor="middle" fill="white" font-size="12">Draft State</text>
+                    
+                    <rect x="750" y="390" width="180" height="80" fill="#F38181" rx="8"/>
+                    <text x="840" y="420" text-anchor="middle" fill="white" font-weight="bold">OpenSearch</text>
+                    <text x="840" y="440" text-anchor="middle" fill="white" font-size="12">Vector DB</text>
+                    <text x="840" y="455" text-anchor="middle" fill="white" font-size="12">Historical Data</text>
+                </g>
+                
+                <!-- Supporting Services -->
+                <g id="support-services">
+                    <rect x="970" y="180" width="180" height="60" fill="#4ECDC4" rx="8"/>
+                    <text x="1060" y="205" text-anchor="middle" fill="white" font-weight="bold">AgentCore Identity</text>
+                    <text x="1060" y="220" text-anchor="middle" fill="white" font-size="12">OAuth Management</text>
+                    
+                    <rect x="970" y="260" width="180" height="60" fill="#4ECDC4" rx="8"/>
+                    <text x="1060" y="285" text-anchor="middle" fill="white" font-weight="bold">AgentCore</text>
+                    <text x="1060" y="300" text-anchor="middle" fill="white" font-size="12">Observability</text>
+                    
+                    <rect x="970" y="340" width="180" height="60" fill="#4ECDC4" rx="8"/>
+                    <text x="1060" y="365" text-anchor="middle" fill="white" font-weight="bold">AgentCore Browser</text>
+                    <text x="1060" y="380" text-anchor="middle" fill="white" font-size="12">(Future: Web Scraping)</text>
+                </g>
+                
+                <!-- User Interface Layer -->
+                <g id="ui-layer">
+                    <rect x="200" y="540" width="180" height="80" fill="#AA96DA" rx="8"/>
+                    <text x="290" y="570" text-anchor="middle" fill="white" font-weight="bold">Web Chat UI</text>
+                    <text x="290" y="595" text-anchor="middle" fill="white" font-size="12">Real-time Updates</text>
+                    
+                    <rect x="420" y="540" width="180" height="80" fill="#AA96DA" rx="8"/>
+                    <text x="510" y="570" text-anchor="middle" fill="white" font-weight="bold">VS Code Extension</text>
+                    <text x="510" y="595" text-anchor="middle" fill="white" font-size="12">Development Tools</text>
+                </g>
+                
+                <!-- Real-time Components -->
+                <g id="realtime">
+                    <rect x="50" y="540" width="120" height="80" fill="#FFE66D" rx="8"/>
+                    <text x="110" y="570" text-anchor="middle" font-weight="bold">WebSocket</text>
+                    <text x="110" y="590" text-anchor="middle" font-size="12">Live Draft</text>
+                    <text x="110" y="605" text-anchor="middle" font-size="12">Updates</text>
+                </g>
+                
+                <!-- Foundation Model -->
+                <g id="llm">
+                    <rect x="200" y="670" width="400" height="60" fill="#4ECDC4" rx="8"/>
+                    <text x="400" y="695" text-anchor="middle" fill="white" font-weight="bold">Claude (via Anthropic API)</text>
+                    <text x="400" y="710" text-anchor="middle" fill="white" font-size="12">Primary LLM for All Agents</text>
+                </g>
+                
+                <!-- Connection Lines -->
+                <!-- APIs to Gateway -->
+                <line x1="150" y1="130" x2="300" y2="180" stroke="#333" stroke-width="2"/>
+                <line x1="380" y1="130" x2="400" y2="180" stroke="#333" stroke-width="2"/>
+                <line x1="610" y1="130" x2="500" y2="180" stroke="#333" stroke-width="2"/>
+                
+                <!-- Gateway to Runtime -->
+                <line x1="400" y1="240" x2="400" y2="290" stroke="#333" stroke-width="2"/>
+                
+                <!-- Agents to Memory -->
+                <line x1="580" y1="360" x2="750" y2="330" stroke="#333" stroke-width="2"/>
+                <line x1="580" y1="360" x2="750" y2="430" stroke="#333" stroke-width="2"/>
+                
+                <!-- Runtime to UI -->
+                <line x1="290" y1="490" x2="290" y2="540" stroke="#333" stroke-width="2"/>
+                <line x1="510" y1="490" x2="510" y2="540" stroke="#333" stroke-width="2"/>
+                
+                <!-- WebSocket to Runtime -->
+                <line x1="110" y1="540" x2="200" y2="390" stroke="#FFE66D" stroke-width="3" stroke-dasharray="5,5"/>
+                
+                <!-- LLM to Runtime -->
+                <line x1="400" y1="670" x2="400" y2="490" stroke="#333" stroke-width="2"/>
+                
+                <!-- Support Services connections -->
+                <line x1="970" y1="210" x2="700" y2="340" stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
+                <line x1="970" y1="290" x2="700" y2="380" stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
+            </svg>
+        </div>
+        
+        <div class="details">
+            <div class="section">
+                <h2>Architecture Overview</h2>
+                <p>This fantasy football draft assistant leverages AWS Bedrock AgentCore to orchestrate multiple AI agents that work together to provide real-time draft recommendations. The system integrates with multiple fantasy platforms and uses both real-time and historical data to make intelligent suggestions.</p>
+            </div>
+            
+            <div class="section">
+                <h2>Key Components</h2>
+                
+                <h3>External Data Sources</h3>
+                <ul class="component-list">
+                    <li><strong>Yahoo Fantasy API:</strong> Primary platform requiring OAuth 2.0 authentication. Provides comprehensive league, draft, and player data.</li>
+                    <li><strong>Sleeper API:</strong> Secondary platform with public API (no auth required). Easier integration for quick prototyping.</li>
+                    <li><strong>FantasyPros MCP Server:</strong> Expert consensus rankings and projections accessed via Model Context Protocol.</li>
+                </ul>
+                
+                <h3>AWS Infrastructure</h3>
+                <ul class="component-list">
+                    <li><strong>AgentCore Runtime:</strong> Serverless execution environment with 8-hour max runtime support for long drafts.</li>
+                    <li><strong>AgentCore Gateway:</strong> Converts APIs to MCP-compatible tools for seamless agent integration.</li>
+                    <li><strong>AgentCore Memory:</strong> Maintains draft state and hot data for low-latency access during picks.</li>
+                    <li><strong>AgentCore Identity:</strong> Manages OAuth tokens and user authentication securely.</li>
+                    <li><strong>AgentCore Observability:</strong> Monitors agent performance and provides debugging capabilities.</li>
+                </ul>
+                
+                <h3>Agent Architecture (CrewAI)</h3>
+                <ul class="component-list">
+                    <li><strong>Data Collector Agent:</strong> Fetches real-time draft data and player availability.</li>
+                    <li><strong>Analysis Agent:</strong> Evaluates players based on projections, ADP, and team needs.</li>
+                    <li><strong>Strategy Agent:</strong> Considers league scoring, roster construction, and position scarcity.</li>
+                    <li><strong>Recommendation Agent:</strong> Synthesizes insights and provides top 3 pick recommendations.</li>
+                </ul>
+                
+                <h3>Storage Layers</h3>
+                <ul class="component-list">
+                    <li><strong>AgentCore Memory:</strong> Real-time draft state, current rosters, recent picks (hot data).</li>
+                    <li><strong>OpenSearch Vector DB:</strong> Historical player performance, draft patterns, embedded insights.</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>Real-Time Draft Flow</h2>
+                <ol>
+                    <li><strong>Pre-Draft (T-30min):</strong> Load league settings, cache player data, pre-calculate tier breaks</li>
+                    <li><strong>Draft Start:</strong> Establish WebSocket connection for live updates</li>
+                    <li><strong>Continuous Monitoring:</strong> Track each pick, update available players</li>
+                    <li><strong>3 Picks Before Yours:</strong> Begin pre-computing recommendations</li>
+                    <li><strong>Your Pick (90 seconds):</strong> Display recommendations → Allow questions → Confirm selection</li>
+                </ol>
+            </div>
+            
+            <div class="section">
+                <h2>Authentication Flow</h2>
+                <code>
+                User → Yahoo OAuth → AgentCore Identity → Store Tokens → API Access
+                </code>
+                <p>First-time setup requires browser-based OAuth flow. Subsequent sessions use refresh tokens stored securely by AgentCore Identity.</p>
+            </div>
+            
+            <div class="section">
+                <h2>Technical Specifications</h2>
+                <ul class="component-list">
+                    <li><strong>Primary Language:</strong> Python 3.10+</li>
+                    <li><strong>Agent Framework:</strong> CrewAI (initial), potential migration to LangGraph for complex workflows</li>
+                    <li><strong>LLM:</strong> Claude via Anthropic API (your Max account)</li>
+                    <li><strong>Deployment:</strong> AWS Bedrock AgentCore (preview, free until Sept 2025)</li>
+                    <li><strong>Development:</strong> VS Code with Claude Code integration</li>
+                    <li><strong>Version Control:</strong> GitHub (public repository)</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>Performance Requirements</h2>
+                <ul class="component-list">
+                    <li><strong>Draft Pick Latency:</strong> &lt; 2 seconds for recommendation display</li>
+                    <li><strong>Pre-computation Window:</strong> 3 picks ahead (approximately 4.5 minutes)</li>
+                    <li><strong>Memory Requirements:</strong> ~500MB for full player dataset in memory</li>
+                    <li><strong>Concurrent Users:</strong> Single user (personal use)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

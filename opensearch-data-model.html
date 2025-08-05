@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Assistant - OpenSearch Data Model</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .diagram-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+        svg {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .index-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .index-section h2 {
+            color: #444;
+            margin-top: 0;
+            border-bottom: 2px solid #4ECDC4;
+            padding-bottom: 10px;
+        }
+        .field-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .field-table th {
+            background: #4ECDC4;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+        .field-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .field-table tr:hover {
+            background: #f5f5f5;
+        }
+        .embedding-note {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .query-examples {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .query-examples h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        pre {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OpenSearch Vector Database - Data Model Design</h1>
+        
+        <div class="diagram-container">
+            <svg width="1200" height="800" viewBox="0 0 1200 800">
+                <!-- Title -->
+                <text x="600" y="30" text-anchor="middle" font-size="20" font-weight="bold">OpenSearch Indices Architecture</text>
+                
+                <!-- Player Performance Index -->
+                <g id="player-performance">
+                    <rect x="50" y="70" width="350" height="320" fill="#F38181" rx="8" opacity="0.2"/>
+                    <rect x="50" y="70" width="350" height="40" fill="#F38181" rx="8"/>
+                    <text x="225" y="95" text-anchor="middle" fill="white" font-weight="bold">player_performance</text>
+                    
+                    <!-- Fields -->
+                    <text x="70" y="140" font-weight="bold">Primary Fields:</text>
+                    <text x="70" y="160">• player_id (keyword)</text>
+                    <text x="70" y="180">• player_name (text)</text>
+                    <text x="70" y="200">• season (integer)</text>
+                    <text x="70" y="220">• position (keyword)</text>
+                    <text x="70" y="240">• team (keyword)</text>
+                    
+                    <text x="70" y="270" font-weight="bold">Statistical Fields:</text>
+                    <text x="70" y="290">• games_played (integer)</text>
+                    <text x="70" y="310">• fantasy_points_total (float)</text>
+                    <text x="70" y="330">• fantasy_points_avg (float)</text>
+                    <text x="70" y="350">• consistency_score (float)</text>
+                    
+                    <!-- Embedding -->
+                    <rect x="60" y="360" width="330" height="20" fill="#4ECDC4" rx="3"/>
+                    <text x="225" y="375" text-anchor="middle" fill="white" font-size="12">performance_embedding (dense_vector: 768)</text>
+                </g>
+                
+                <!-- Draft History Index -->
+                <g id="draft-history">
+                    <rect x="430" y="70" width="350" height="320" fill="#F38181" rx="8" opacity="0.2"/>
+                    <rect x="430" y="70" width="350" height="40" fill="#F38181" rx="8"/>
+                    <text x="605" y="95" text-anchor="middle" fill="white" font-weight="bold">draft_history</text>
+                    
+                    <!-- Fields -->
+                    <text x="450" y="140" font-weight="bold">Primary Fields:</text>
+                    <text x="450" y="160">• draft_id (keyword)</text>
+                    <text x="450" y="180">• player_id (keyword)</text>
+                    <text x="450" y="200">• season (integer)</text>
+                    <text x="450" y="220">• league_type (keyword)</text>
+                    
+                    <text x="450" y="250" font-weight="bold">Draft Data:</text>
+                    <text x="450" y="270">• adp (float)</text>
+                    <text x="450" y="290">• actual_pick (integer)</text>
+                    <text x="450" y="310">• draft_value_score (float)</text>
+                    <text x="450" y="330">• roster_position (keyword)</text>
+                    
+                    <!-- Embedding -->
+                    <rect x="440" y="360" width="330" height="20" fill="#4ECDC4" rx="3"/>
+                    <text x="605" y="375" text-anchor="middle" fill="white" font-size="12">draft_context_embedding (dense_vector: 768)</text>
+                </g>
+                
+                <!-- Player Insights Index -->
+                <g id="player-insights">
+                    <rect x="810" y="70" width="350" height="320" fill="#F38181" rx="8" opacity="0.2"/>
+                    <rect x="810" y="70" width="350" height="40" fill="#F38181" rx="8"/>
+                    <text x="985" y="95" text-anchor="middle" fill="white" font-weight="bold">player_insights</text>
+                    
+                    <!-- Fields -->
+                    <text x="830" y="140" font-weight="bold">Primary Fields:</text>
+                    <text x="830" y="160">• insight_id (keyword)</text>
+                    <text x="830" y="180">• player_id (keyword)</text>
+                    <text x="830" y="200">• season (integer)</text>
+                    <text x="830" y="220">• insight_type (keyword)</text>
+                    
+                    <text x="830" y="250" font-weight="bold">Analysis Fields:</text>
+                    <text x="830" y="270">• injury_history (object)</text>
+                    <text x="830" y="290">• usage_trends (object)</text>
+                    <text x="830" y="310">• matchup_performance (object)</text>
+                    <text x="830" y="330">• narrative_summary (text)</text>
+                    
+                    <!-- Embedding -->
+                    <rect x="820" y="360" width="330" height="20" fill="#4ECDC4" rx="3"/>
+                    <text x="985" y="375" text-anchor="middle" fill="white" font-size="12">insight_embedding (dense_vector: 768)</text>
+                </g>
+                
+                <!-- League Patterns Index -->
+                <g id="league-patterns">
+                    <rect x="50" y="420" width="350" height="300" fill="#F38181" rx="8" opacity="0.2"/>
+                    <rect x="50" y="420" width="350" height="40" fill="#F38181" rx="8"/>
+                    <text x="225" y="445" text-anchor="middle" fill="white" font-weight="bold">league_patterns</text>
+                    
+                    <!-- Fields -->
+                    <text x="70" y="490" font-weight="bold">Primary Fields:</text>
+                    <text x="70" y="510">• pattern_id (keyword)</text>
+                    <text x="70" y="530">• league_type (keyword)</text>
+                    <text x="70" y="550">• scoring_system (keyword)</text>
+                    
+                    <text x="70" y="580" font-weight="bold">Pattern Data:</text>
+                    <text x="70" y="600">• position_value_tiers (object)</text>
+                    <text x="70" y="620">• optimal_draft_flow (object)</text>
+                    <text x="70" y="640">• roster_construction (object)</text>
+                    <text x="70" y="660">• success_metrics (object)</text>
+                    
+                    <!-- Embedding -->
+                    <rect x="60" y="690" width="330" height="20" fill="#4ECDC4" rx="3"/>
+                    <text x="225" y="705" text-anchor="middle" fill="white" font-size="12">pattern_embedding (dense_vector: 768)</text>
+                </g>
+                
+                <!-- Projections Index -->
+                <g id="projections">
+                    <rect x="430" y="420" width="350" height="300" fill="#F38181" rx="8" opacity="0.2"/>
+                    <rect x="430" y="420" width="350" height="40" fill="#F38181" rx="8"/>
+                    <text x="605" y="445" text-anchor="middle" fill="white" font-weight="bold">player_projections</text>
+                    
+                    <!-- Fields -->
+                    <text x="450" y="490" font-weight="bold">Primary Fields:</text>
+                    <text x="450" y="510">• projection_id (keyword)</text>
+                    <text x="450" y="530">• player_id (keyword)</text>
+                    <text x="450" y="550">• week (integer)</text>
+                    <text x="450" y="570">• season (integer)</text>
+                    
+                    <text x="450" y="600" font-weight="bold">Projection Data:</text>
+                    <text x="450" y="620">• projected_points (float)</text>
+                    <text x="450" y="640">• confidence_score (float)</text>
+                    <text x="450" y="660">• projection_source (keyword)</text>
+                    <text x="450" y="680">• actual_points (float)</text>
+                    
+                    <!-- No embedding for pure statistical data -->
+                </g>
+                
+                <!-- Relationships -->
+                <defs>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#666"/>
+                    </marker>
+                </defs>
+                
+                <!-- Relationship lines -->
+                <line x1="400" y1="230" x2="430" y2="230" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/>
+                <line x1="780" y1="230" x2="810" y2="230" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/>
+                <line x1="605" y1="390" x2="605" y2="420" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/>
+                
+                <!-- Legend -->
+                <rect x="850" y="500" width="300" height="180" fill="#e8f5e9" rx="8"/>
+                <text x="1000" y="520" text-anchor="middle" font-weight="bold">Vector Embedding Strategy</text>
+                <text x="860" y="545" font-size="12">• Performance: Career stats patterns</text>
+                <text x="860" y="565" font-size="12">• Draft: Historical value context</text>
+                <text x="860" y="585" font-size="12">• Insights: Narrative analysis</text>
+                <text x="860" y="605" font-size="12">• Patterns: League strategies</text>
+                <text x="860" y="635" font-size="12" font-weight="bold">Embedding Model:</text>
+                <text x="860" y="655" font-size="12">Amazon Titan Embeddings G1</text>
+                <text x="860" y="670" font-size="12">768 dimensions</text>
+            </svg>
+        </div>
+        
+        <div class="index-section">
+            <h2>Index: player_performance</h2>
+            <p>Stores historical performance data with embeddings for semantic search on player patterns.</p>
+            
+            <table class="field-table">
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+                <tr>
+                    <td>player_id</td>
+                    <td>keyword</td>
+                    <td>Unique player identifier</td>
+                    <td>"CHM2023"</td>
+                </tr>
+                <tr>
+                    <td>performance_embedding</td>
+                    <td>dense_vector</td>
+                    <td>Vector representation of player's performance pattern</td>
+                    <td>[0.123, -0.456, ...]</td>
+                </tr>
+                <tr>
+                    <td>performance_narrative</td>
+                    <td>text</td>
+                    <td>Natural language description for embedding</td>
+                    <td>"Consistent RB1 with strong goal-line usage..."</td>
+                </tr>
+                <tr>
+                    <td>boom_bust_score</td>
+                    <td>float</td>
+                    <td>Volatility metric (0-1)</td>
+                    <td>0.73</td>
+                </tr>
+            </table>
+            
+            <div class="embedding-note">
+                <strong>Embedding Strategy:</strong> Combine statistical patterns with narrative descriptions to create rich semantic representations. Example: "High-floor PPR back with 15+ touches per game, excels in negative game scripts"
+            </div>
+        </div>
+        
+        <div class="index-section">
+            <h2>Index: draft_history</h2>
+            <p>Tracks draft patterns and value identification with context-aware embeddings.</p>
+            
+            <table class="field-table">
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+                <tr>
+                    <td>draft_value_score</td>
+                    <td>float</td>
+                    <td>How much value above/below ADP</td>
+                    <td>+15.3</td>
+                </tr>
+                <tr>
+                    <td>draft_context</td>
+                    <td>object</td>
+                    <td>League settings and roster state at pick</td>
+                    <td>{"format": "PPR", "roster_needs": ["RB", "WR"]}</td>
+                </tr>
+                <tr>
+                    <td>outcome_rank</td>
+                    <td>integer</td>
+                    <td>End of season positional rank</td>
+                    <td>5</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="index-section">
+            <h2>Index: player_insights</h2>
+            <p>Rich analytical insights with embeddings for nuanced player understanding.</p>
+            
+            <table class="field-table">
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+                <tr>
+                    <td>injury_history</td>
+                    <td>object</td>
+                    <td>Detailed injury tracking</td>
+                    <td>{"2024": ["hamstring", "ankle"], "games_missed": 3}</td>
+                </tr>
+                <tr>
+                    <td>usage_trends</td>
+                    <td>object</td>
+                    <td>Target share, snap %, red zone usage</td>
+                    <td>{"target_share": 0.28, "red_zone_targets": 15}</td>
+                </tr>
+                <tr>
+                    <td>breakout_indicators</td>
+                    <td>object</td>
+                    <td>Predictive metrics for improvement</td>
+                    <td>{"age": 23, "opportunity_score": 0.85}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="query-examples">
+            <h3>Example Vector Queries</h3>
+            
+            <pre>{
+  "query": {
+    "knn": {
+      "performance_embedding": {
+        "vector": [/* embedding for "consistent high-floor RB2" */],
+        "k": 10
+      }
+    }
+  },
+  "filter": {
+    "range": {
+      "adp": { "gte": 30, "lte": 60 }
+    }
+  }
+}</pre>
+            
+            <p><strong>Natural Language Queries Enabled:</strong></p>
+            <ul>
+                <li>"Find players similar to 2023 Austin Ekeler"</li>
+                <li>"Show me boom/bust WRs who outperformed ADP"</li>
+                <li>"Which RBs excel in PPR but struggle in standard?"</li>
+                <li>"Find sleepers with similar profile to breakout players"</li>
+            </ul>
+        </div>
+        
+        <div class="index-section">
+            <h2>Data Pipeline Architecture</h2>
+            
+            <pre>{
+  "ingestion": {
+    "sources": ["Yahoo API", "Sleeper API", "FantasyPros"],
+    "frequency": "Daily during season, weekly off-season",
+    "processing": [
+      "Statistical aggregation",
+      "Pattern detection",
+      "Narrative generation",
+      "Embedding creation"
+    ]
+  },
+  "embedding_pipeline": {
+    "model": "Amazon Titan Embeddings G1",
+    "preprocessing": "Combine stats + context + narrative",
+    "storage": "768-dimensional dense vectors",
+    "indexing": "HNSW algorithm for fast similarity search"
+  }
+}</pre>
+        </div>
+    </div>
+</body>
+</html>

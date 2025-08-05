@@ -1,0 +1,32 @@
+# Fantasy Football Draft Assistant - Dependencies
+# Core framework
+crewai==0.28.8
+python-dotenv==1.0.0
+
+# HTTP and async support
+aiohttp==3.9.1
+requests==2.31.0
+
+# CLI interface
+click==8.1.7
+rich==13.7.1
+
+# Data handling
+pandas==2.1.4
+pydantic==2.5.2
+
+# Anthropic Claude API
+anthropic==0.21.3
+
+# Development and testing
+pytest==7.4.4
+pytest-asyncio==0.21.1
+black==23.12.1
+flake8==6.1.0
+
+# MCP Protocol (for FantasyPros later)
+mcp==1.0.0
+
+# Optional: For future Yahoo integration
+# yfpy==13.0.0
+# yahoo-oauth==2.0

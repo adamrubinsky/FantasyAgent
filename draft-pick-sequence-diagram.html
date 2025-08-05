@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Draft Pick Flow - Sequence Diagram</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .diagram-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 30px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .timing-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .timing-note h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .phase {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .phase h2 {
+            color: #444;
+            margin-top: 0;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .critical-path {
+            background: #ffebee;
+            border-left: 4px solid #ef5350;
+            padding: 10px 15px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Draft Pick Flow - Sequence Diagram</h1>
+        
+        <div class="timing-note">
+            <h3>⏱️ Critical Timing Constraint</h3>
+            <p>Total time available when your pick arrives: <strong>90 seconds</strong></p>
+            <p>Pre-computation begins: <strong>3 picks before yours</strong> (~4.5 minutes advance notice)</p>
+        </div>
+        
+        <div class="diagram-container">
+            <svg width="1200" height="1400" viewBox="0 0 1200 1400">
+                <!-- Actors -->
+                <g id="actors">
+                    <!-- User -->
+                    <rect x="50" y="50" width="100" height="40" fill="#AA96DA" rx="5"/>
+                    <text x="100" y="75" text-anchor="middle" fill="white" font-weight="bold">User</text>
+                    <line x1="100" y1="90" x2="100" y2="1350" stroke="#AA96DA" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- WebSocket -->
+                    <rect x="200" y="50" width="100" height="40" fill="#FFE66D" rx="5"/>
+                    <text x="250" y="75" text-anchor="middle" font-weight="bold">WebSocket</text>
+                    <line x1="250" y1="90" x2="250" y2="1350" stroke="#FFE66D" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- AgentCore -->
+                    <rect x="350" y="50" width="100" height="40" fill="#4ECDC4" rx="5"/>
+                    <text x="400" y="75" text-anchor="middle" fill="white" font-weight="bold">AgentCore</text>
+                    <line x1="400" y1="90" x2="400" y2="1350" stroke="#4ECDC4" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- Data Agent -->
+                    <rect x="500" y="50" width="100" height="40" fill="#95E1D3" rx="5"/>
+                    <text x="550" y="75" text-anchor="middle" font-weight="bold">Data Agent</text>
+                    <line x1="550" y1="90" x2="550" y2="1350" stroke="#95E1D3" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- Analysis Agent -->
+                    <rect x="650" y="50" width="120" height="40" fill="#95E1D3" rx="5"/>
+                    <text x="710" y="75" text-anchor="middle" font-weight="bold">Analysis Agent</text>
+                    <line x1="710" y1="90" x2="710" y2="1350" stroke="#95E1D3" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- Strategy Agent -->
+                    <rect x="820" y="50" width="120" height="40" fill="#95E1D3" rx="5"/>
+                    <text x="880" y="75" text-anchor="middle" font-weight="bold">Strategy Agent</text>
+                    <line x1="880" y1="90" x2="880" y2="1350" stroke="#95E1D3" stroke-width="2" stroke-dasharray="5,5"/>
+                    
+                    <!-- Memory -->
+                    <rect x="990" y="50" width="100" height="40" fill="#F38181" rx="5"/>
+                    <text x="1040" y="75" text-anchor="middle" fill="white" font-weight="bold">Memory</text>
+                    <line x1="1040" y1="90" x2="1040" y2="1350" stroke="#F38181" stroke-width="2" stroke-dasharray="5,5"/>
+                </g>
+                
+                <!-- Pre-Draft Phase -->
+                <rect x="30" y="120" width="1140" height="30" fill="#e3f2fd" rx="5"/>
+                <text x="600" y="140" text-anchor="middle" font-weight="bold">Pre-Draft Phase (T-30 minutes)</text>
+                
+                <!-- Message: Start Draft -->
+                <line x1="100" y1="170" x2="400" y2="170" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="250" y="165" text-anchor="middle" font-size="12">Start Draft Session</text>
+                
+                <!-- Load Data -->
+                <line x1="400" y1="190" x2="550" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="475" y="185" text-anchor="middle" font-size="12">Load League Settings</text>
+                
+                <line x1="550" y1="210" x2="1040" y2="210" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="795" y="205" text-anchor="middle" font-size="12">Cache Player Data</text>
+                
+                <line x1="400" y1="230" x2="710" y2="230" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="555" y="225" text-anchor="middle" font-size="12">Pre-calculate Tiers</text>
+                
+                <!-- Draft Active Phase -->
+                <rect x="30" y="270" width="1140" height="30" fill="#c8e6c9" rx="5"/>
+                <text x="600" y="290" text-anchor="middle" font-weight="bold">Draft Active - Monitoring Phase</text>
+                
+                <!-- WebSocket Connection -->
+                <line x1="250" y1="320" x2="400" y2="320" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="325" y="315" text-anchor="middle" font-size="12">Connect WebSocket</text>
+                
+                <!-- Pick Updates -->
+                <rect x="240" y="340" width="20" height="80" fill="#FFE66D" opacity="0.3"/>
+                <text x="270" y="380" font-size="12">Other picks...</text>
+                
+                <line x1="250" y1="360" x2="400" y2="360" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="325" y="355" text-anchor="middle" font-size="12">Pick Update</text>
+                
+                <line x1="400" y1="380" x2="550" y2="380" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="475" y="375" text-anchor="middle" font-size="12">Update Available</text>
+                
+                <line x1="550" y1="400" x2="1040" y2="400" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="795" y="395" text-anchor="middle" font-size="12">Update Draft State</text>
+                
+                <!-- Pre-computation Phase -->
+                <rect x="30" y="440" width="1140" height="30" fill="#ffecb3" rx="5"/>
+                <text x="600" y="460" text-anchor="middle" font-weight="bold">Pre-Computation Phase (3 picks before yours)</text>
+                
+                <line x1="250" y1="490" x2="400" y2="490" stroke="#FF6B6B" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <text x="325" y="485" text-anchor="middle" font-size="12" font-weight="bold">3 Picks Away!</text>
+                
+                <!-- Parallel Processing -->
+                <rect x="390" y="510" width="650" height="180" fill="#fff3cd" opacity="0.3" rx="5"/>
+                <text x="715" y="530" text-anchor="middle" font-weight="bold">Parallel Pre-computation</text>
+                
+                <line x1="400" y1="550" x2="550" y2="550" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="475" y="545" text-anchor="middle" font-size="12">Get Available Players</text>
+                
+                <line x1="400" y1="570" x2="710" y2="570" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="555" y="565" text-anchor="middle" font-size="12">Analyze Top 20</text>
+                
+                <line x1="400" y1="590" x2="880" y2="590" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="640" y="585" text-anchor="middle" font-size="12">Calculate Scenarios</text>
+                
+                <line x1="710" y1="610" x2="1040" y2="610" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="875" y="605" text-anchor="middle" font-size="12">Store Analysis</text>
+                
+                <line x1="880" y1="630" x2="1040" y2="630" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="960" y="625" text-anchor="middle" font-size="12">Store Recommendations</text>
+                
+                <line x1="400" y1="660" x2="100" y2="660" stroke="#333" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+                <text x="250" y="655" text-anchor="middle" font-size="12">Pre-compute Ready</text>
+                
+                <!-- Your Pick Phase -->
+                <rect x="30" y="710" width="1140" height="30" fill="#ffcdd2" rx="5"/>
+                <text x="600" y="730" text-anchor="middle" font-weight="bold">Your Pick Phase (90 seconds)</text>
+                
+                <!-- Critical 90 second window -->
+                <rect x="90" y="760" width="960" height="440" fill="#ffebee" opacity="0.2" rx="5"/>
+                <text x="570" y="780" text-anchor="middle" font-weight="bold" fill="#d32f2f">⏱️ 90 Second Window</text>
+                
+                <!-- T+0-10 seconds -->
+                <rect x="100" y="800" width="940" height="30" fill="#e8f5e9" rx="3"/>
+                <text x="120" y="820" font-weight="bold">T+0-10s: Display Recommendations</text>
+                
+                <line x1="250" y1="850" x2="400" y2="850" stroke="#d32f2f" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <text x="325" y="845" text-anchor="middle" font-size="12" font-weight="bold">YOUR PICK!</text>
+                
+                <line x1="400" y1="870" x2="1040" y2="870" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="720" y="865" text-anchor="middle" font-size="12">Fetch Recommendations</text>
+                
+                <line x1="1040" y1="890" x2="400" y2="890" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="720" y="885" text-anchor="middle" font-size="12">Return Top 3</text>
+                
+                <line x1="400" y1="910" x2="100" y2="910" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="250" y="905" text-anchor="middle" font-size="12">Display Options</text>
+                
+                <!-- T+10-60 seconds -->
+                <rect x="100" y="940" width="940" height="30" fill="#fff3cd" rx="3"/>
+                <text x="120" y="960" font-weight="bold">T+10-60s: Interactive Analysis</text>
+                
+                <line x1="100" y1="990" x2="400" y2="990" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="250" y="985" text-anchor="middle" font-size="12">"What about Player X?"</text>
+                
+                <line x1="400" y1="1010" x2="710" y2="1010" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="555" y="1005" text-anchor="middle" font-size="12">Quick Analysis</text>
+                
+                <line x1="710" y1="1030" x2="400" y2="1030" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="555" y="1025" text-anchor="middle" font-size="12">Return Insight</text>
+                
+                <line x1="400" y1="1050" x2="100" y2="1050" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="250" y="1045" text-anchor="middle" font-size="12">Display Analysis</text>
+                
+                <!-- T+60-80 seconds -->
+                <rect x="100" y="1080" width="940" height="30" fill="#ffccbc" rx="3"/>
+                <text x="120" y="1100" font-weight="bold">T+60-80s: Final Decision</text>
+                
+                <line x1="400" y1="1130" x2="100" y2="1130" stroke="#FF6B6B" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="250" y="1125" text-anchor="middle" font-size="12" font-weight="bold">Final Recommendation</text>
+                
+                <!-- T+80-90 seconds -->
+                <rect x="100" y="1160" width="940" height="30" fill="#ef9a9a" rx="3"/>
+                <text x="120" y="1180" font-weight="bold">T+80-90s: Submit Pick</text>
+                
+                <line x1="100" y1="1210" x2="400" y2="1210" stroke="#d32f2f" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <text x="250" y="1205" text-anchor="middle" font-size="12" font-weight="bold">Confirm Pick</text>
+                
+                <line x1="400" y1="1230" x2="250" y2="1230" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="325" y="1225" text-anchor="middle" font-size="12">Submit to Platform</text>
+                
+                <!-- Post Pick -->
+                <rect x="30" y="1260" width="1140" height="30" fill="#e0e0e0" rx="5"/>
+                <text x="600" y="1280" text-anchor="middle" font-weight="bold">Post-Pick Phase</text>
+                
+                <line x1="400" y1="1310" x2="1040" y2="1310" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="720" y="1305" text-anchor="middle" font-size="12">Update Roster</text>
+                
+                <!-- Arrow marker -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+        
+        <div class="phase">
+            <h2>Critical Timing Breakdown</h2>
+            
+            <div class="critical-path">
+                <strong>0-10 seconds:</strong> Must display pre-computed recommendations immediately
+                <ul>
+                    <li>Top 3 player suggestions with brief reasoning</li>
+                    <li>Position scarcity indicators</li>
+                    <li>Value vs ADP comparison</li>
+                </ul>
+            </div>
+            
+            <div class="critical-path">
+                <strong>10-60 seconds:</strong> Interactive analysis window
+                <ul>
+                    <li>User can ask about specific players</li>
+                    <li>Compare alternatives</li>
+                    <li>View detailed projections</li>
+                </ul>
+            </div>
+            
+            <div class="critical-path">
+                <strong>60-80 seconds:</strong> Decision time
+                <ul>
+                    <li>Final recommendation highlighted</li>
+                    <li>Quick summary of why this pick makes sense</li>
+                    <li>Confirmation prompt appears</li>
+                </ul>
+            </div>
+            
+            <div class="critical-path">
+                <strong>80-90 seconds:</strong> Submit window
+                <ul>
+                    <li>User confirms selection</li>
+                    <li>System submits to platform</li>
+                    <li>Update internal state</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="phase">
+            <h2>Performance Requirements</h2>
+            <ul>
+                <li><strong>Pre-computation trigger:</strong> Must detect "3 picks away" within 1 second</li>
+                <li><strong>Analysis completion:</strong> All scenarios computed before your pick arrives</li>
+                <li><strong>Recommendation display:</strong> &lt; 2 seconds from pick notification</li>
+                <li><strong>Interactive queries:</strong> &lt; 3 seconds response time</li>
+                <li><strong>Platform submission:</strong> &lt; 1 second</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
