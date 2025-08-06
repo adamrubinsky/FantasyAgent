@@ -127,40 +127,39 @@ class DraftMonitor:
             draft_info = await self.client.get_draft_info(self.draft_id)
             draft_order = draft_info.get('draft_order', {})
             
-            # For mock drafts, try to find user in draft order directly
-            if self.draft_id and draft_order:
-                # In mock drafts, we might be in the draft_order
-                user_info = await self.client.get_user()
-                user_id = user_info.get('user_id')
-                
+            # First priority: Get from league rosters if it's a regular league
+            user_info = await self.client.get_user()
+            user_id = user_info.get('user_id')
+            
+            if self.league_id:
+                try:
+                    rosters = await self.client.get_league_rosters()
+                    
+                    for roster in rosters:
+                        if roster.get('owner_id') == user_id:
+                            self.user_roster_id = roster.get('roster_id')
+                            self.console.print(f"👤 Found user in roster {self.user_roster_id}", style="green")
+                            break
+                except:
+                    pass  # Might fail for mock drafts
+            
+            # Second priority: For mock drafts, try to find user in draft order
+            if self.user_roster_id is None and draft_order:
                 # Check if user is in draft_order
                 for roster_id, draft_user_id in draft_order.items():
                     if draft_user_id == user_id:
                         self.user_roster_id = int(roster_id)
+                        self.console.print(f"🎮 Found user in draft order at roster {self.user_roster_id}", style="cyan")
                         break
                 
                 # If not found in draft order, assign first available slot for mock drafts
-                if self.user_roster_id is None and hasattr(self, 'draft_id'):
+                if self.user_roster_id is None:
                     # For mock drafts, just pick the first empty slot
                     for i in range(1, 13):  # Standard 12-team draft
                         if str(i) not in draft_order or draft_order[str(i)] is None:
                             self.user_roster_id = i
                             self.console.print(f"📍 Assigned to draft slot #{i} in mock draft", style="cyan")
                             break
-            
-            # For regular league drafts, get from rosters
-            if self.user_roster_id is None and self.league_id:
-                try:
-                    rosters = await self.client.get_league_rosters()
-                    user_info = await self.client.get_user()
-                    user_id = user_info.get('user_id')
-                    
-                    for roster in rosters:
-                        if roster.get('owner_id') == user_id:
-                            self.user_roster_id = roster.get('roster_id')
-                            break
-                except:
-                    pass  # Might fail for mock drafts
             
             if self.user_roster_id is None:
                 self.console.print("⚠️ Could not determine your draft position - will monitor all picks", style="yellow")
@@ -185,6 +184,9 @@ class DraftMonitor:
             
             # Step 6: Determine current pick number
             self.current_pick = len(picks) + 1 if len(picks) < self.total_picks else self.total_picks
+            
+            # Step 7: Calculate picks until user turn
+            self.picks_until_user_turn = self._get_picks_until_user_turn(self.current_pick)
             
             # Step 7: Load any cached state
             await self._load_draft_state()
@@ -513,6 +515,37 @@ class DraftMonitor:
             self.console.print("\n👋 Draft monitoring stopped", style="yellow")
         finally:
             await self._save_draft_state()
+    
+    def _get_picks_until_user_turn(self, current_pick: int) -> Optional[int]:
+        """Calculate how many picks until it's the user's turn"""
+        if not self.user_roster_id or not current_pick:
+            return None
+            
+        # Calculate which pick number corresponds to user's turn
+        # In snake draft, roster positions alternate each round
+        round_num = ((current_pick - 1) // 12) + 1  # Assuming 12 teams
+        pick_in_round = ((current_pick - 1) % 12) + 1
+        
+        if round_num % 2 == 1:  # Odd rounds: 1, 3, 5...
+            user_pick_in_round = self.user_roster_id
+        else:  # Even rounds: 2, 4, 6...
+            user_pick_in_round = 13 - self.user_roster_id
+        
+        # Calculate user's next pick
+        if pick_in_round <= user_pick_in_round:
+            # User hasn't picked this round yet
+            user_next_pick = ((round_num - 1) * 12) + user_pick_in_round
+        else:
+            # User already picked this round, next pick is next round
+            next_round = round_num + 1
+            if next_round % 2 == 1:
+                next_user_pick_in_round = self.user_roster_id
+            else:
+                next_user_pick_in_round = 13 - self.user_roster_id
+            user_next_pick = ((next_round - 1) * 12) + next_user_pick_in_round
+        
+        picks_until_user = user_next_pick - current_pick
+        return picks_until_user if picks_until_user >= 0 else None
     
     async def _create_available_players_display(self, position_filter: str = None, enhanced: bool = False) -> Panel:
         """Create display panel for available players with optional enhanced data"""

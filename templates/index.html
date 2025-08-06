@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Draft Assistant</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --border: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: 100vh;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .main-panel {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-panel {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface-light);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: var(--secondary-color);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .draft-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: var(--background);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .draft-board {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .recent-picks {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .pick-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--surface-light);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .pick-info {
+            flex: 1;
+        }
+
+        .player-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .pick-meta {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .user-roster {
+            margin-bottom: 2rem;
+        }
+
+        .roster-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .roster-slot {
+            background: var(--surface-light);
+            border-radius: 6px;
+            padding: 0.75rem;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .roster-slot.filled {
+            border-color: var(--secondary-color);
+            background: linear-gradient(135deg, var(--surface-light), rgba(16, 185, 129, 0.1));
+        }
+
+        .roster-slot.empty {
+            border-color: var(--border);
+            border-style: dashed;
+        }
+
+        .slot-position {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .slot-player {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+
+        .slot-team {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .available-players {
+            margin-top: 1rem;
+        }
+
+        .player-filters {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .filter-btn.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .player-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--surface-light);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .player-item:hover {
+            background: var(--primary-color);
+            transform: translateX(4px);
+        }
+
+        .player-details {
+            flex: 1;
+        }
+
+        .player-rank {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .message.user .message-avatar {
+            background: var(--primary-color);
+        }
+
+        .message.ai .message-avatar {
+            background: var(--secondary-color);
+        }
+
+        .message.system .message-avatar {
+            background: var(--warning-color);
+        }
+
+        .message-content {
+            flex: 1;
+            background: var(--surface-light);
+            padding: 0.75rem;
+            border-radius: 12px;
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-content {
+            background: var(--primary-color);
+            text-align: right;
+        }
+
+        .urgent-alert {
+            background: var(--danger-color) !important;
+            animation: urgentPulse 1s infinite;
+            border: 2px solid rgba(239, 68, 68, 0.5);
+        }
+
+        @keyframes urgentPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 0.75rem;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .connection-panel {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .start-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--secondary-color);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            background: #059669;
+        }
+
+        .draft-id-input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr auto;
+            }
+            
+            .chat-panel {
+                height: 50vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Main Draft Panel -->
+        <div class="main-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    🏈 Draft Assistant
+                    <div class="status-indicator" id="connectionStatus"></div>
+                </div>
+            </div>
+
+            <div class="draft-info">
+                <div class="info-item">
+                    <div class="info-label">Current Pick</div>
+                    <div class="info-value" id="currentPick">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Your Turn In</div>
+                    <div class="info-value" id="picksUntilUser">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Total Picks</div>
+                    <div class="info-value" id="totalPicks">-</div>
+                </div>
+            </div>
+
+            <div class="connection-panel">
+                <input type="text" class="draft-id-input" id="draftIdInput" placeholder="Draft ID (optional for mock drafts)">
+                <button class="start-btn" id="startBtn">🚀 Start Draft Monitoring</button>
+            </div>
+
+            <div class="draft-board">
+                <div class="recent-picks">
+                    <div class="section-title">📋 Recent Picks</div>
+                    <div id="recentPicks">
+                        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Start monitoring to see draft picks...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="user-roster">
+                    <div class="section-title">🏆 Your Team</div>
+                    <div class="roster-grid" id="rosterGrid">
+                        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Start monitoring to see your roster...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="available-players">
+                    <div class="section-title">⭐ Available Players</div>
+                    <div class="player-filters">
+                        <button class="filter-btn active" data-position="">ALL</button>
+                        <button class="filter-btn" data-position="QB">QB</button>
+                        <button class="filter-btn" data-position="RB">RB</button>
+                        <button class="filter-btn" data-position="WR">WR</button>
+                        <button class="filter-btn" data-position="TE">TE</button>
+                    </div>
+                    <div class="player-list" id="playerList">
+                        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Start monitoring to see available players...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="chat-panel">
+            <div class="panel-header">
+                <div class="panel-title">💬 AI Chat Assistant</div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+Welcome to your Fantasy Draft Assistant! 
+
+I'll automatically alert you when your pick is coming up and provide AI-powered recommendations.
+
+Try asking me:
+• "Who should I draft?"
+• "Compare Josh Allen vs Lamar Jackson"
+• "Show me available RBs"
+• "What's my roster need?"
+
+Start draft monitoring to begin!
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Ask me anything about the draft...">
+                <button class="send-btn" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DraftAssistant {
+            constructor() {
+                this.ws = null;
+                this.isConnected = false;
+                this.recentPicks = [];
+                this.currentFilter = '';
+                
+                this.initializeUI();
+                this.connectWebSocket();
+            }
+
+            initializeUI() {
+                // Start button
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    this.startDraftMonitoring();
+                });
+
+                // Chat input
+                document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendChatMessage();
+                    }
+                });
+
+                document.getElementById('sendBtn').addEventListener('click', () => {
+                    this.sendChatMessage();
+                });
+
+                // Player filters
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentFilter = e.target.dataset.position;
+                        this.requestAvailablePlayers();
+                    });
+                });
+            }
+
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.isConnected = true;
+                    this.updateConnectionStatus();
+                    console.log('WebSocket connected');
+                };
+
+                this.ws.onclose = () => {
+                    this.isConnected = false;
+                    this.updateConnectionStatus();
+                    console.log('WebSocket disconnected');
+                    
+                    // Reconnect after 3 seconds
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+
+                this.ws.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    this.handleMessage(message);
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            updateConnectionStatus() {
+                const indicator = document.getElementById('connectionStatus');
+                if (this.isConnected) {
+                    indicator.classList.add('connected');
+                } else {
+                    indicator.classList.remove('connected');
+                }
+            }
+
+            startDraftMonitoring() {
+                const draftId = document.getElementById('draftIdInput').value.trim();
+                
+                if (this.ws && this.isConnected) {
+                    this.ws.send(JSON.stringify({
+                        type: 'start_monitoring',
+                        draft_id: draftId || null
+                    }));
+
+                    document.getElementById('startBtn').textContent = '🔄 Monitoring Active...';
+                    document.getElementById('startBtn').disabled = true;
+                }
+            }
+
+            sendChatMessage() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                
+                if (message && this.ws && this.isConnected) {
+                    this.ws.send(JSON.stringify({
+                        type: 'chat_message',
+                        message: message
+                    }));
+                    
+                    input.value = '';
+                }
+            }
+
+            requestAvailablePlayers() {
+                if (this.ws && this.isConnected) {
+                    this.ws.send(JSON.stringify({
+                        type: 'get_available_players',
+                        position: this.currentFilter,
+                        limit: 20
+                    }));
+                }
+            }
+
+            handleMessage(message) {
+                switch (message.type) {
+                    case 'draft_started':
+                        this.addChatMessage('system', `🏈 Draft monitoring started! Draft ID: ${message.draft_id}`);
+                        this.requestAvailablePlayers();
+                        break;
+
+                    case 'new_pick':
+                        this.addRecentPick(message);
+                        this.addChatMessage('system', 
+                            `📋 Pick ${message.pick_number}: ${message.player_name} (${message.position}) to ${message.picked_by}`
+                        );
+                        this.requestAvailablePlayers(); // Refresh available players
+                        break;
+
+                    case 'draft_status':
+                        this.updateDraftStatus(message);
+                        break;
+
+                    case 'urgent_recommendation':
+                    case 'upcoming_recommendation':
+                    case 'early_recommendation':
+                        this.addChatMessage('ai', message.message, message.type === 'urgent_recommendation');
+                        break;
+
+                    case 'chat_message':
+                        this.addChatMessage(message.sender, message.message);
+                        break;
+
+                    case 'available_players':
+                        this.updateAvailablePlayers(message.players);
+                        break;
+
+                    case 'user_roster_update':
+                        this.updateUserRoster(message.roster_slots);
+                        break;
+
+                    case 'error':
+                        this.addChatMessage('system', `❌ Error: ${message.message}`);
+                        break;
+                }
+            }
+
+            addChatMessage(sender, message, isUrgent = false) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                if (isUrgent) {
+                    messageDiv.classList.add('urgent-alert');
+                }
+
+                const avatar = sender === 'user' ? '👤' : 
+                              sender === 'ai' ? '🤖' : '🔔';
+
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">${message}</div>
+                `;
+
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                // Play notification sound for urgent alerts
+                if (isUrgent) {
+                    this.playNotificationSound();
+                }
+            }
+
+            addRecentPick(pick) {
+                this.recentPicks.unshift(pick);
+                if (this.recentPicks.length > 10) {
+                    this.recentPicks = this.recentPicks.slice(0, 10);
+                }
+
+                const container = document.getElementById('recentPicks');
+                container.innerHTML = this.recentPicks.map(p => `
+                    <div class="pick-item">
+                        <div class="pick-info">
+                            <div class="player-name">${p.player_name}</div>
+                            <div class="pick-meta">Pick ${p.pick_number} • ${p.position} • ${p.picked_by}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateDraftStatus(status) {
+                document.getElementById('currentPick').textContent = status.current_pick;
+                document.getElementById('totalPicks').textContent = status.total_picks;
+                
+                const picksUntilUser = status.picks_until_user;
+                const element = document.getElementById('picksUntilUser');
+                
+                if (picksUntilUser === null) {
+                    element.textContent = '-';
+                } else if (picksUntilUser === 0) {
+                    element.textContent = 'NOW!';
+                    element.style.color = 'var(--danger-color)';
+                    element.style.fontWeight = 'bold';
+                } else {
+                    element.textContent = picksUntilUser;
+                    element.style.color = picksUntilUser <= 3 ? 'var(--warning-color)' : 'var(--text-primary)';
+                    element.style.fontWeight = picksUntilUser <= 3 ? 'bold' : 'normal';
+                }
+            }
+
+            updateAvailablePlayers(players) {
+                const container = document.getElementById('playerList');
+                
+                if (!players || players.length === 0) {
+                    container.innerHTML = `
+                        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            No players available
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = players.map(player => `
+                    <div class="player-item" onclick="app.askAboutPlayer('${player.name}')">
+                        <div class="player-details">
+                            <div class="player-name">${player.name}</div>
+                            <div class="pick-meta">
+                                ${player.positions.join('/')} • ${player.team || 'FA'}
+                                ${player.adp ? ` • ADP ${player.adp}` : ''}
+                                ${player.bye_week ? ` • Bye ${player.bye_week}` : ''}
+                            </div>
+                        </div>
+                        <div class="player-rank">${player.rank < 999 ? player.rank : 'NR'}</div>
+                    </div>
+                `).join('');
+            }
+
+            updateUserRoster(rosterSlots) {
+                const container = document.getElementById('rosterGrid');
+                
+                if (!rosterSlots || rosterSlots.length === 0) {
+                    container.innerHTML = `
+                        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            No roster data available
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = rosterSlots.map(slot => {
+                    if (slot.filled && slot.player) {
+                        return `
+                            <div class="roster-slot filled" onclick="app.askAboutPlayer('${slot.player.player_name}')">
+                                <div class="slot-position">${slot.position}</div>
+                                <div class="slot-player">${slot.player.player_name}</div>
+                                <div class="slot-team">${slot.player.team}</div>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <div class="roster-slot empty">
+                                <div class="slot-position">${slot.position}</div>
+                                <div class="slot-player">Empty</div>
+                            </div>
+                        `;
+                    }
+                }).join('');
+            }
+
+            askAboutPlayer(playerName) {
+                const input = document.getElementById('chatInput');
+                input.value = `Tell me about ${playerName}`;
+                this.sendChatMessage();
+            }
+
+            playNotificationSound() {
+                // Create audio context and play notification beep
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                } catch (e) {
+                    console.log('Audio notification not supported');
+                }
+            }
+        }
+
+        // Initialize the app
+        const app = new DraftAssistant();
+    </script>
+</body>
+</html>
