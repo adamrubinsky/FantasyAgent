@@ -8,8 +8,34 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-const API_KEY = process.env.FANTASYPROS_API_KEY;
+// Load environment variables from .env file manually (silent)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+let API_KEY = process.env.FANTASYPROS_API_KEY;
+
+// If not in environment, try to read from .env file
+if (!API_KEY) {
+  try {
+    const envPath = join(__dirname, '..', '.env');
+    const envContent = readFileSync(envPath, 'utf8');
+    const envLines = envContent.split('\n');
+    
+    for (const line of envLines) {
+      const [key, value] = line.split('=');
+      if (key?.trim() === 'FANTASYPROS_API_KEY' && value) {
+        API_KEY = value.trim();
+        break;
+      }
+    }
+  } catch (error) {
+    // .env file doesn't exist or can't be read
+  }
+}
 if (!API_KEY) {
   throw new Error('FANTASYPROS_API_KEY environment variable is required');
 }
