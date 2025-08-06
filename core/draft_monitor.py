@@ -34,14 +34,14 @@ class DraftMonitor:
     This is the core component for draft day - it needs to be rock solid!
     """
     
-    def __init__(self, username: str, league_id: str, anthropic_api_key: str = None):
+    def __init__(self, username: str, league_id: str, anthropic_api_key: str = None, draft_id: str = None):
         self.username = username
         self.league_id = league_id
         self.anthropic_api_key = anthropic_api_key
         self.console = Console()
         
         # Draft state tracking
-        self.draft_id: Optional[str] = None
+        self.draft_id: Optional[str] = draft_id  # Can be provided directly for mock drafts
         self.last_pick_count = 0
         self.user_roster_id: Optional[int] = None
         self.current_pick: Optional[int] = None
@@ -109,34 +109,68 @@ class DraftMonitor:
             bool: True if draft found and initialized successfully
         """
         try:
-            # Step 1: Get league information
+            # Step 1: Get league information (skip if draft_id already provided)
             self.console.print("🔍 Initializing draft monitor...", style="yellow")
-            league_info = await self.client.get_league_info()
             
-            # Step 2: Find draft ID
-            self.draft_id = league_info.get('draft_id')
             if not self.draft_id:
-                self.console.print("❌ No draft found for this league", style="red")
-                return False
+                # Regular league draft - find draft ID from league
+                league_info = await self.client.get_league_info()
+                self.draft_id = league_info.get('draft_id')
+                if not self.draft_id:
+                    self.console.print("❌ No draft found for this league", style="red")
+                    return False
+            else:
+                # Mock draft mode - draft_id already provided
+                self.console.print(f"🎮 Using provided draft ID: {self.draft_id}", style="cyan")
             
-            # Step 3: Get league rosters to find user's roster ID
-            rosters = await self.client.get_league_rosters()
-            user_info = await self.client.get_user()
-            user_id = user_info.get('user_id')
+            # Step 3: Get draft information first
+            draft_info = await self.client.get_draft_info(self.draft_id)
+            draft_order = draft_info.get('draft_order', {})
             
-            # Find which roster belongs to our user
-            for roster in rosters:
-                if roster.get('owner_id') == user_id:
-                    self.user_roster_id = roster.get('roster_id')
-                    break
+            # For mock drafts, try to find user in draft order directly
+            if self.draft_id and draft_order:
+                # In mock drafts, we might be in the draft_order
+                user_info = await self.client.get_user()
+                user_id = user_info.get('user_id')
+                
+                # Check if user is in draft_order
+                for roster_id, draft_user_id in draft_order.items():
+                    if draft_user_id == user_id:
+                        self.user_roster_id = int(roster_id)
+                        break
+                
+                # If not found in draft order, assign first available slot for mock drafts
+                if self.user_roster_id is None and hasattr(self, 'draft_id'):
+                    # For mock drafts, just pick the first empty slot
+                    for i in range(1, 13):  # Standard 12-team draft
+                        if str(i) not in draft_order or draft_order[str(i)] is None:
+                            self.user_roster_id = i
+                            self.console.print(f"📍 Assigned to draft slot #{i} in mock draft", style="cyan")
+                            break
+            
+            # For regular league drafts, get from rosters
+            if self.user_roster_id is None and self.league_id:
+                try:
+                    rosters = await self.client.get_league_rosters()
+                    user_info = await self.client.get_user()
+                    user_id = user_info.get('user_id')
+                    
+                    for roster in rosters:
+                        if roster.get('owner_id') == user_id:
+                            self.user_roster_id = roster.get('roster_id')
+                            break
+                except:
+                    pass  # Might fail for mock drafts
             
             if self.user_roster_id is None:
-                self.console.print("❌ Could not find your roster in this league", style="red")
-                return False
+                self.console.print("⚠️ Could not determine your draft position - will monitor all picks", style="yellow")
+                self.user_roster_id = 1  # Default to position 1 for monitoring
             
-            # Step 4: Get draft information
-            draft_info = await self.client.get_draft_info(self.draft_id)
-            self.total_picks = len(rosters) * draft_info.get('settings', {}).get('rounds', 16)
+            # Step 4: Calculate total picks based on draft settings
+            draft_settings = draft_info.get('settings', {})
+            total_teams = draft_settings.get('teams', 12)  # Default to 12 teams
+            total_rounds = draft_settings.get('rounds', 16)  # Default to 16 rounds
+            self.total_picks = total_teams * total_rounds
             
             # Step 5: Get current draft picks to establish baseline
             picks = await self.client.get_draft_picks(self.draft_id)

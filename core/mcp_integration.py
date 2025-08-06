@@ -37,13 +37,22 @@ try:
 except ImportError:
     LOCAL_MODE = False
 
+# Import official FantasyPros MCP client
+try:
+    from core.official_fantasypros import OfficialFantasyProsMCP
+    OFFICIAL_MCP_AVAILABLE = True
+except ImportError:
+    OFFICIAL_MCP_AVAILABLE = False
+
 
 class MCPClient:
     """
     Client for interacting with MCP servers
     
-    During development: Uses local MCP functions directly
-    In production: Makes HTTP calls to AgentCore-hosted MCP servers
+    Priority order:
+    1. Official FantasyPros MCP server (when API key available)
+    2. Local custom MCP functions (fallback)
+    3. AgentCore-hosted MCP servers (production)
     """
     
     def __init__(self, agent_url: str = None, auth_token: str = None):
@@ -57,6 +66,12 @@ class MCPClient:
         self.agent_url = agent_url or os.getenv('AGENTCORE_MCP_URL')
         self.auth_token = auth_token or os.getenv('AGENTCORE_AUTH_TOKEN')
         self.session = None
+        
+        # Initialize official FantasyPros MCP client
+        self.official_client = None
+        if OFFICIAL_MCP_AVAILABLE:
+            self.official_client = OfficialFantasyProsMCP()
+            print("🌐 Official FantasyPros MCP client initialized")
         
         # Determine if we're in local or production mode
         # Force local mode for development if no agent URL is provided
@@ -87,6 +102,11 @@ class MCPClient:
         """
         Call an MCP tool with the given parameters
         
+        Priority order:
+        1. Official FantasyPros MCP server (when available)
+        2. Local custom MCP functions (fallback)
+        3. AgentCore-hosted MCP servers (production)
+        
         Args:
             tool_name: Name of the MCP tool to call
             **kwargs: Tool parameters
@@ -94,8 +114,23 @@ class MCPClient:
         Returns:
             Tool response as a dictionary
         """
+        # Priority 1: Try official FantasyPros MCP server
+        if self.official_client and tool_name == 'get_rankings':
+            try:
+                if await self.official_client.is_server_available():
+                    result = await self.official_client.get_rankings(
+                        position=kwargs.get('position', 'ALL'),
+                        scoring=kwargs.get('scoring_format', 'HALF'),
+                        limit=kwargs.get('limit', 100)
+                    )
+                    if result:
+                        print("✅ Using official FantasyPros rankings")
+                        return result
+            except Exception as e:
+                print(f"⚠️ Official FantasyPros failed, falling back: {e}")
+        
+        # Priority 2: Local mode - call custom functions
         if self.is_local:
-            # Local mode - call functions directly
             tool_map = {
                 'get_rankings': get_rankings,
                 'get_projections': get_projections,
@@ -105,12 +140,13 @@ class MCPClient:
             }
             
             if tool_name in tool_map:
+                print(f"📍 Using custom MCP function: {tool_name}")
                 return tool_map[tool_name](**kwargs)
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
         
+        # Priority 3: Production mode - make HTTP call to AgentCore
         else:
-            # Production mode - make HTTP call to AgentCore
             if not self.session:
                 raise RuntimeError("MCPClient not initialized properly")
             

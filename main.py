@@ -162,9 +162,10 @@ def league():
 @click.option('--position', '-p', help='Filter available players by position (QB, RB, WR, TE)')
 @click.option('--no-available', is_flag=True, help='Hide available players table')
 @click.option('--enhanced', '-e', is_flag=True, help='Show enhanced data (ADP, bye weeks, playoff outlook)')
-def monitor(position, no_available, enhanced):
+@click.option('--draft-id', '-d', help='Specific draft ID to monitor (for mock drafts)')
+def monitor(position, no_available, enhanced, draft_id):
     """🚨 Start real-time draft monitoring (polls every 5 seconds)"""
-    asyncio.run(start_draft_monitoring(position, not no_available, enhanced))
+    asyncio.run(start_draft_monitoring(position, not no_available, enhanced, draft_id))
 
 
 @cli.command()
@@ -174,20 +175,36 @@ def status():
 
 
 @cli.command()
+@click.argument('draft_id')
+@click.option('--position', '-p', help='Filter available players by position (QB, RB, WR, TE)')
+@click.option('--enhanced', '-e', is_flag=True, help='Show enhanced data (ADP, bye weeks, playoff outlook)')
+def mock(draft_id, position, enhanced):
+    """🎮 Test with Sleeper mock draft - provide draft ID from Sleeper app"""
+    console.print(f"🎮 Starting mock draft mode with draft ID: {draft_id}", style="bright_cyan")
+    console.print("💡 Use this to test the assistant with any Sleeper mock draft!", style="dim")
+    asyncio.run(start_draft_monitoring(position, True, enhanced, draft_id))
+
+
+@cli.command()
 @click.option('--pick', '-p', type=int, help='Current pick number to analyze')
 def precompute(pick):
     """🎯 Run pre-computation analysis for upcoming pick"""
     asyncio.run(run_precomputation_analysis(pick))
 
 
-async def start_draft_monitoring(position_filter: str = None, show_available: bool = True, enhanced: bool = False):
+async def start_draft_monitoring(position_filter: str = None, show_available: bool = True, enhanced: bool = False, draft_id: str = None):
     """Start the real-time draft monitor"""
     username = os.getenv('SLEEPER_USERNAME')
     league_id = os.getenv('SLEEPER_LEAGUE_ID')
     api_key = os.getenv('ANTHROPIC_API_KEY')
     
-    if not username or not league_id:
+    # Mock draft mode - only need draft_id
+    if draft_id:
+        console.print(f"🎮 Mock Draft Mode: Monitoring draft {draft_id}", style="bright_cyan")
+        username = username or "mock_user"  # Fallback for mock drafts
+    elif not username or not league_id:
         console.print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file", style="red")
+        console.print("💡 Or use --draft-id to monitor a specific mock draft", style="yellow")
         return
     
     if enhanced:
@@ -198,7 +215,7 @@ async def start_draft_monitoring(position_filter: str = None, show_available: bo
     else:
         console.print("⚠️ No ANTHROPIC_API_KEY - pre-computation engine disabled", style="yellow")
     
-    async with DraftMonitor(username, league_id, api_key) as monitor:
+    async with DraftMonitor(username, league_id, api_key, draft_id) as monitor:
         await monitor.start_monitoring(show_available, position_filter, enhanced)
 
 
