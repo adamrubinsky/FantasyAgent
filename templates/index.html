@@ -515,6 +515,9 @@ Start draft monitoring to begin!
         </div>
     </div>
 
+    <!-- Mock Backend for Immediate Interactivity -->
+    <script src="static/mock-backend.js"></script>
+    
     <script>
         class DraftAssistant {
             constructor() {
@@ -525,6 +528,12 @@ Start draft monitoring to begin!
                 
                 this.initializeUI();
                 this.connectWebSocket();
+                
+                // Load mock data for immediate interactivity
+                if (window.useMockBackend) {
+                    this.requestAvailablePlayers();
+                    this.addChatMessage('system', '🤖 Fantasy Draft Assistant ready! Try asking about SUPERFLEX strategy or specific players.');
+                }
             }
 
             initializeUI() {
@@ -609,27 +618,67 @@ Start draft monitoring to begin!
                 }
             }
 
-            sendChatMessage() {
+            async sendChatMessage() {
                 const input = document.getElementById('chatInput');
                 const message = input.value.trim();
                 
-                if (message && this.ws && this.isConnected) {
+                if (!message) return;
+                
+                // Add user message to chat
+                this.addChatMessage('user', message);
+                input.value = '';
+                
+                // Try WebSocket first (real backend), then fallback to mock
+                if (this.ws && this.isConnected) {
                     this.ws.send(JSON.stringify({
                         type: 'chat_message',
                         message: message
                     }));
-                    
-                    input.value = '';
+                } else if (window.useMockBackend) {
+                    // Use mock backend for immediate response
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({message})
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.addChatMessage('ai', data.response);
+                        }
+                    } catch (error) {
+                        this.addChatMessage('system', '❌ Connection error. Please try again.');
+                    }
                 }
             }
 
-            requestAvailablePlayers() {
+            async requestAvailablePlayers() {
+                // Try WebSocket first (real backend), then fallback to mock
                 if (this.ws && this.isConnected) {
                     this.ws.send(JSON.stringify({
                         type: 'get_available_players',
                         position: this.currentFilter,
                         limit: 20
                     }));
+                } else if (window.useMockBackend) {
+                    try {
+                        const response = await fetch('/api/available-players', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                position: this.currentFilter || 'ALL',
+                                limit: 20
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.updateAvailablePlayers(data.players);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching available players:', error);
+                    }
                 }
             }
 
