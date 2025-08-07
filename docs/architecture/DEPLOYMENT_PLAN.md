@@ -31,7 +31,7 @@
 ```bash
 # Configure AgentCore with your AWS role
 agentcore configure --entrypoint fantasy_draft_agentcore.py \
-  --execution-role-arn arn:aws:iam::120687070694:role/fantasy-draft-agentcore-role
+  --execution-role-arn arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/fantasy-draft-agentcore-role
 
 # Deploy to AgentCore Runtime  
 agentcore launch
@@ -149,7 +149,7 @@ aws acm request-certificate --domain-name drafts.adamrubinsky.com \
 ```bash
 # 1. Configure AgentCore
 agentcore configure --entrypoint fantasy_draft_agentcore.py \
-  -er arn:aws:iam::120687070694:role/fantasy-draft-agentcore-role
+  -er arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/fantasy-draft-agentcore-role
 
 # 2. Deploy to AgentCore Runtime
 agentcore launch

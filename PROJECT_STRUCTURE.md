@@ -1,119 +1,145 @@
-# Fantasy Football Draft Assistant - Project Structure
+# Fantasy Agent Project Structure
 
-## 📁 Root Directory Layout
+## 📁 Directory Organization
 
 ```
 FantasyAgent/
-├── 📋 Core Application Files
-│   ├── main.py                    # CLI entry point
-│   ├── requirements.txt           # Python dependencies
-│   └── .env(.example|.local)      # Environment configuration
+├── 📂 agents/                  # CrewAI multi-agent system
+│   ├── draft_crew.py           # 4-agent draft analysis system
+│   └── __init__.py
 │
-├── 🤖 Agent System
-│   └── agents/
-│       └── draft_crew.py          # CrewAI multi-agent implementation
+├── 📂 api/                     # External API integrations
+│   ├── sleeper_client.py       # Sleeper Fantasy API client
+│   ├── yahoo_client.py         # Yahoo Fantasy API client (future)
+│   └── __init__.py
 │
-├── 🔌 API Integrations  
-│   └── api/
-│       ├── sleeper_client.py      # Sleeper Fantasy API
-│       └── fantasypros_client.py  # Legacy FantasyPros client
+├── 📂 core/                    # Core business logic
+│   ├── draft_monitor.py        # Real-time draft monitoring
+│   ├── official_fantasypros.py # FantasyPros API integration
+│   ├── player_data_enricher.py # Enhanced player data
+│   └── recommendation_engine.py
 │
-├── 🧠 Core Logic
-│   └── core/
-│       ├── ai_assistant.py        # AI analysis engine
-│       ├── draft_monitor.py       # Real-time draft tracking
-│       ├── league_context.py      # League settings management
-│       ├── mcp_integration.py     # MCP client wrapper
-│       └── rankings_manager.py    # Data aggregation logic
+├── 📂 data/                    # Cached data and rankings
+│   ├── players_cache.json      # NFL player database
+│   ├── fantasypros_rankings_*.json
+│   └── mock_players.json
 │
-├── 🔗 MCP Servers
-│   └── mcp_servers/
-│       └── fantasypros_mcp.py     # Custom MCP server (fallback)
+├── 📂 deployment/              # Deployment configurations
+│   ├── agentcore/              # Bedrock AgentCore files
+│   │   ├── fantasy_draft_agentcore.py
+│   │   ├── .bedrock_agentcore.yaml
+│   │   └── agentcore_*.py
+│   ├── lambda/                 # Lambda backend
+│   │   ├── lambda_backend.py
+│   │   └── lambda-deployment.zip
+│   └── scripts/                # Deployment scripts
+│       ├── deploy_*.py
+│       └── setup_*.sh
 │
-├── 💾 Data Storage
-│   └── data/
-│       ├── players_cache.json     # Cached player database
-│       ├── draft_state.json       # Current draft state
-│       └── league_contexts.json   # Saved league settings
+├── 📂 docs/                    # Documentation
+│   ├── architecture/           # System architecture docs
+│   │   ├── DEPLOYMENT_PLAN.md
+│   │   └── REAL_AGENTCORE_UNDERSTANDING.md
+│   └── setup/                  # Setup guides
+│       ├── SETUP_GUIDE.md
+│       └── ROOT_USER_SETUP.md
 │
-├── 🔧 Utilities & Scripts
-│   └── scripts/
-│       ├── check_picks.py         # Draft pick verification
-│       └── generate_rankings.py   # Ranking generation utility
+├── 📂 infrastructure/          # AWS infrastructure configs
+│   ├── iam/                   # IAM roles and policies
+│   ├── policies/              # IAM policy JSONs
+│   │   ├── CODEBUILD_IAM_POLICY.json
+│   │   └── BROADER_IAM_POLICY.json
+│   └── codebuild-env.json
 │
-├── 🧪 Testing
-│   └── tests/
-│       ├── test_ai.py            # AI system tests
-│       └── test_caching.py       # Cache system tests
+├── 📂 static/                  # Frontend static assets
+│   └── mock-backend.js         # Mock backend for testing
 │
-├── 📖 Documentation
-│   ├── docs/
-│   │   ├── architecture/         # System architecture diagrams
-│   │   └── planning/            # Project planning documents
-│   ├── ACTION_LOG.md            # Development progress log
-│   ├── OVERVIEW.md              # Project overview
-│   ├── SETUP.md                 # Setup instructions
-│   └── README.md                # Main project README
+├── 📂 templates/               # HTML templates
+│   └── index.html              # Main web interface
 │
-├── 🔌 External Dependencies
-│   └── external/
-│       └── fantasypros-mcp-server/  # Official FantasyPros MCP server
+├── 📂 tests/                   # Test files
+│   ├── integration/            # Integration tests
+│   │   └── test_*.py
+│   └── unit/                   # Unit tests
+│       └── debug_*.py
 │
-└── 📝 Examples & Demos
-    └── examples/
-        ├── ai_examples.md       # AI query examples
-        └── league_comparison.py # League analysis examples
+├── 📂 archive/                 # Archived/deprecated files
+│   └── incorrect_bedrock_agents/
+│
+├── 📂 logs/                    # Application logs
+│   └── fantasy-draft-agentcore.log
+│
+├── 📄 main.py                  # Main CLI entry point
+├── 📄 web_app.py              # Flask web application
+├── 📄 requirements.txt         # Python dependencies
+├── 📄 Dockerfile              # Docker configuration
+├── 📄 ACTION_LOG.md           # Development history
+├── 📄 OVERVIEW.md             # Project overview
+├── 📄 README.md               # Project readme
+└── 📄 .env.example            # Environment variables template
 ```
 
-## 🎯 Key Components
+## 🔑 Key Files
 
-### **Multi-Agent System**
-- **CrewAI Framework**: 4 specialized agents (Data Collector, Analyst, Strategist, Advisor)
-- **Live Data Integration**: MCP protocol for real-time FantasyPros data
-- **Context Awareness**: League settings and draft state tracking
+### Core Application
+- `main.py` - CLI interface for the draft assistant
+- `web_app.py` - Flask web server for browser interface
+- `requirements.txt` - All Python package dependencies
 
-### **Data Sources**
-- **Primary**: Official FantasyPros MCP server (requires API key)
-- **Fallback**: Custom web scraping with comprehensive mock data
-- **Draft Data**: Sleeper API for real-time pick monitoring
+### API Clients
+- `api/sleeper_client.py` - Async Sleeper API integration
+- `core/official_fantasypros.py` - FantasyPros rankings API
 
-### **Deployment Architecture**
-- **Development**: Local Python + Node.js MCP servers
-- **Production**: AWS Bedrock AgentCore integration
-- **Caching**: 3-tier strategy (cached → live → mock)
+### Multi-Agent System
+- `agents/draft_crew.py` - CrewAI 4-agent analysis system
+
+### Frontend
+- `templates/index.html` - Interactive web UI
+- `static/mock-backend.js` - Mock responses for testing
+
+### Deployment
+- `deployment/lambda/lambda_backend.py` - AWS Lambda backend
+- `deployment/agentcore/fantasy_draft_agentcore.py` - AgentCore implementation
+
+### Documentation
+- `ACTION_LOG.md` - Complete development history
+- `OVERVIEW.md` - Current project status
+- `docs/architecture/DEPLOYMENT_PLAN.md` - Full deployment strategy
+
+## 🌐 Live Endpoints
+
+### Frontend
+- **URL**: http://YOUR_S3_BUCKET_NAME.s3-website-us-east-1.amazonaws.com
+- **Hosting**: AWS S3 Static Website
+
+### Backend API
+- **URL**: https://YOUR_API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod
+- **Service**: AWS Lambda + API Gateway
 
 ## 🚀 Quick Start
 
-1. **Python Setup**:
+1. **Local Development**
    ```bash
-   pip install -r requirements.txt
-   cp .env.example .env  # Add your API keys
+   python main.py test    # Test Sleeper connection
+   python web_app.py      # Start local web server
    ```
 
-2. **MCP Server Setup**:
+2. **Deploy Updates**
    ```bash
-   cd external/fantasypros-mcp-server/
-   npm install && npm run build
+   # Update frontend
+   aws s3 sync templates/ s3://YOUR_S3_BUCKET_NAME/
+   aws s3 sync static/ s3://YOUR_S3_BUCKET_NAME/static/
+   
+   # Update Lambda backend
+   cd deployment/lambda
+   zip lambda-deployment.zip lambda_backend.py
+   aws lambda update-function-code --function-name fantasy-draft-backend --zip-file fileb://lambda-deployment.zip
    ```
 
-3. **Test System**:
-   ```bash
-   python main.py test
-   python tests/test_caching.py
-   ```
+## 📊 Current Status (Day 3 - August 7th)
 
-4. **Run Draft Assistant**:
-   ```bash
-   python main.py ask "Should I draft Josh Allen?"
-   python main.py monitor  # Live draft monitoring
-   ```
-
-## 📊 Data Flow
-
-```
-Draft Question → CrewAI Agents → MCP Client → FantasyPros API → Analysis → Recommendation
-                     ↓              ↓            ↓
-                League Context  Live Rankings  Sleeper Draft Data
-```
-
-This structure supports both rapid development and professional deployment while maintaining clean separation of concerns.
+- ✅ Frontend deployed with real URL access
+- ✅ Lambda backend API working (mock responses)
+- ✅ URL extraction for Sleeper/Yahoo drafts
+- 🔄 AgentCore deployment (CodeBuild issues)
+- 🎯 Next: Connect CrewAI agents to Lambda backend

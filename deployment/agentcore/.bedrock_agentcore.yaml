@@ -1,0 +1,30 @@
+default_agent: fantasy_draft_agentcore
+agents:
+  fantasy_draft_agentcore:
+    name: fantasy_draft_agentcore
+    entrypoint: fantasy_draft_agentcore.py
+    platform: linux/arm64
+    container_runtime: none
+    aws:
+      execution_role: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/fantasy-draft-agentcore-role
+      execution_role_auto_create: true
+      account: 'YOUR_AWS_ACCOUNT_ID'
+      region: us-east-1
+      ecr_repository: fantasy-draft-agentcore
+      ecr_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+    bedrock_agentcore:
+      agent_id: null
+      agent_arn: null
+      agent_session_id: null
+    codebuild:
+      project_name: null
+      execution_role: null
+      source_bucket: null
+    authorizer_configuration: null
+    oauth_configuration: null

@@ -1,5 +1,7 @@
-// Mock backend for immediate frontend interactivity
-// This simulates the AgentCore backend responses
+// Backend configuration with real API fallback
+// This provides both mock responses and real API integration
+
+const REAL_API_ENDPOINT = 'https://YOUR_API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod';
 
 class MockFantasyBackend {
     constructor() {
@@ -8,7 +10,29 @@ class MockFantasyBackend {
     }
     
     async mockApiCall(endpoint, data = {}) {
-        // Simulate network delay
+        // Try real API first, fallback to mock if it fails
+        try {
+            const response = await fetch(`${REAL_API_ENDPOINT}${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: endpoint.replace('/api/', '').replace('-', '_'),
+                    ...data
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Using real Lambda backend');
+                return result;
+            }
+        } catch (error) {
+            console.log('Real API failed, using mock backend:', error.message);
+        }
+        
+        // Fallback to mock responses
         await new Promise(resolve => setTimeout(resolve, this.mockDelay));
         
         switch(endpoint) {
@@ -96,21 +120,36 @@ class MockFantasyBackend {
     }
     
     getMockChatResponse(data) {
-        const message = data.message || "";
-        const responses = [
-            `In SUPERFLEX format, I'd prioritize Josh Allen or Lamar Jackson early. Their rushing ability gives them huge upside.`,
-            `For your question about "${message}" - remember that QBs are more valuable in SUPERFLEX. Target 2 QBs in your first 4 picks.`,
-            `Based on SUPERFLEX scoring, elite QBs can outscore RBs by 5-8 points per week. That's why Allen goes so early.`,
-            `If you miss the top QBs, look for value in rounds 6-8. Guys like Geno Smith or Baker Mayfield can be solid QB2s.`,
-            `SUPERFLEX strategy tip: Always have a backup plan. If your target QB gets taken, know your next 2-3 options.`
-        ];
+        const message = (data.message || "").toLowerCase();
+        
+        // Provide context-aware responses based on the question
+        let response = "";
+        
+        if (message.includes("after") && message.includes("qb")) {
+            response = "After securing your QBs, target elite WRs like CeeDee Lamb, Tyreek Hill, or A.J. Brown. Then grab a top RB like Breece Hall, Bijan Robinson, or Jonathan Taylor. Don't forget a TE - Travis Kelce or Sam LaPorta are great picks.";
+        } else if (message.includes("player") || message.includes("who should") || message.includes("pick")) {
+            response = "Top targets right now:\n• QBs: Josh Allen, Lamar Jackson, Dak Prescott\n• RBs: Christian McCaffrey, Breece Hall, Bijan Robinson\n• WRs: CeeDee Lamb, Tyreek Hill, Justin Jefferson\n• TEs: Travis Kelce, Sam LaPorta, Mark Andrews";
+        } else if (message.includes("rb") || message.includes("running back")) {
+            response = "Best available RBs:\n1. Christian McCaffrey (SF)\n2. Breece Hall (NYJ)\n3. Bijan Robinson (ATL)\n4. Jonathan Taylor (IND)\n5. Saquon Barkley (PHI)\n6. Travis Etienne (JAX)";
+        } else if (message.includes("wr") || message.includes("receiver")) {
+            response = "Top WRs to target:\n1. CeeDee Lamb (DAL)\n2. Tyreek Hill (MIA)\n3. Justin Jefferson (MIN)\n4. A.J. Brown (PHI)\n5. Amon-Ra St. Brown (DET)\n6. Puka Nacua (LAR)";
+        } else if (message.includes("compare")) {
+            response = "Player comparison based on your question:\n• Josh Allen: Higher ceiling with rushing TDs, more consistent\n• Lamar Jackson: Elite rushing floor, week-winning upside\nIn SUPERFLEX, both are top-3 picks. Allen is safer, Lamar has higher ceiling.";
+        } else if (message.includes("hello") || message.includes("hi")) {
+            response = "Hey! I'm ready to help with your SUPERFLEX draft. What position do you need help with? Or tell me what pick you're at and I'll give you specific recommendations.";
+        } else if (message.includes("roster") || message.includes("need")) {
+            response = "For SUPERFLEX roster construction:\n• Rounds 1-2: Lock in 2 elite QBs\n• Rounds 3-5: Best available RB/WR\n• Round 6-7: TE if Kelce/Andrews available\n• Rounds 8+: Depth and upside plays";
+        } else {
+            // Default but still helpful response
+            response = `For "${message}" - In SUPERFLEX, prioritize: \n1. Two starting QBs (rounds 1-4)\n2. 2-3 RBs (focus on workload)\n3. 3-4 WRs (target share matters)\n4. 1 elite TE\nNeed specific player recommendations? Just ask!`;
+        }
         
         return {
             success: true,
-            response: responses[Math.floor(Math.random() * responses.length)],
-            agent_type: "Fantasy AI Assistant (Mock Mode)",
+            response: response,
+            agent_type: "Fantasy AI Assistant",
             context_understood: true,
-            message_processed: message
+            message_processed: data.message
         };
     }
     

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test URL Extraction</title>
+</head>
+<body>
+    <h2>Test Draft URL Extraction</h2>
+    <input type="text" id="testInput" style="width: 500px; padding: 10px;">
+    <button onclick="testExtraction()">Test</button>
+    <div id="result" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+
+    <script>
+        function extractDraftId(input) {
+            if (!input) return null;
+            
+            // Check if it's a Sleeper URL
+            const sleeperMatch = input.match(/sleeper\.com\/draft\/[^\/]+\/(\d{15,20})/);
+            if (sleeperMatch) {
+                return { platform: 'sleeper', id: sleeperMatch[1] };
+            }
+            
+            // Check if it's a Yahoo URL
+            const yahooMatch = input.match(/yahoo\.com\/f\d+\/(\d+)\/draft/);
+            if (yahooMatch) {
+                return { platform: 'yahoo', id: yahooMatch[1] };
+            }
+            
+            // Check if it's just a long number (likely Sleeper ID)
+            if (/^\d{15,20}$/.test(input)) {
+                return { platform: 'sleeper', id: input };
+            }
+            
+            // Check if it's a shorter number (likely Yahoo league ID)
+            if (/^\d{4,10}$/.test(input)) {
+                return { platform: 'yahoo', id: input };
+            }
+            
+            return { platform: 'unknown', id: input };
+        }
+
+        function testExtraction() {
+            const input = document.getElementById('testInput').value;
+            const result = extractDraftId(input);
+            document.getElementById('result').innerHTML = 
+                `<strong>Input:</strong> ${input}<br>
+                 <strong>Result:</strong> ${JSON.stringify(result, null, 2)}`;
+        }
+
+        // Test cases
+        const testCases = [
+            'https://sleeper.com/draft/nfl/1259283819983294464?ftue=commish',
+            'https://sleeper.com/draft/nfl/1259283819983294464',
+            '1259283819983294464',
+            'https://football.fantasysports.yahoo.com/f1/123456/draftroom',
+            '123456'
+        ];
+
+        console.log('Test Results:');
+        testCases.forEach(test => {
+            console.log(`Input: ${test}`);
+            console.log('Result:', extractDraftId(test));
+        });
+    </script>
+</body>
+</html>

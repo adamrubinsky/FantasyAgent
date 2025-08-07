@@ -1,0 +1,8 @@
+{
+    "type": "ARM_CONTAINER",
+    "image": "aws/codebuild/amazonlinux2-aarch64-standard:3.0",
+    "computeType": "BUILD_GENERAL1_LARGE",
+    "environmentVariables": [],
+    "privilegedMode": true,
+    "imagePullCredentialsType": "CODEBUILD"
+}

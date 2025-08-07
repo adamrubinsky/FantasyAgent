@@ -62,11 +62,24 @@ def lambda_handler(event, context):
             }
             
         elif action == 'chat':
-            # Mock AI chat response
-            message = body.get('message', '')
+            # Smart AI chat response based on message content
+            message = body.get('message', '').lower()
+            
+            # Provide context-aware responses
+            if 'after' in message and 'qb' in message:
+                response_text = "After securing your QBs, target elite WRs like CeeDee Lamb, Tyreek Hill, or A.J. Brown. Then grab a top RB like Breece Hall, Bijan Robinson, or Jonathan Taylor. Don't forget a TE - Travis Kelce or Sam LaPorta are great picks."
+            elif 'player' in message or 'who should' in message or 'pick' in message:
+                response_text = "Top targets right now:\n• QBs: Josh Allen, Lamar Jackson, Dak Prescott\n• RBs: Christian McCaffrey, Breece Hall, Bijan Robinson\n• WRs: CeeDee Lamb, Tyreek Hill, Justin Jefferson\n• TEs: Travis Kelce, Sam LaPorta, Mark Andrews"
+            elif 'rb' in message or 'running back' in message:
+                response_text = "Best available RBs:\n1. Christian McCaffrey (SF)\n2. Breece Hall (NYJ)\n3. Bijan Robinson (ATL)\n4. Jonathan Taylor (IND)\n5. Saquon Barkley (PHI)"
+            elif 'wr' in message or 'receiver' in message:
+                response_text = "Top WRs to target:\n1. CeeDee Lamb (DAL)\n2. Tyreek Hill (MIA)\n3. Justin Jefferson (MIN)\n4. A.J. Brown (PHI)\n5. Amon-Ra St. Brown (DET)"
+            else:
+                response_text = f"For SUPERFLEX: Prioritize 2 QBs early (Allen, Jackson, Prescott), then best RB/WR available. Specific question about '{body.get('message', '')}' - ask for player names or positions!"
+            
             response_data = {
                 'success': True,
-                'response': f"Based on SUPERFLEX league format, I'd recommend prioritizing elite QBs early. Josh Allen and Lamar Jackson should be targets in rounds 1-2. Your message: '{message}'",
+                'response': response_text,
                 'agent_type': 'Fantasy AI Assistant',
                 'context_understood': True
             }

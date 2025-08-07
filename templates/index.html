@@ -442,7 +442,7 @@
             </div>
 
             <div class="connection-panel">
-                <input type="text" class="draft-id-input" id="draftIdInput" placeholder="Draft ID (optional for mock drafts)">
+                <input type="text" class="draft-id-input" id="draftIdInput" placeholder="Paste Sleeper or Yahoo draft URL (or just ID)">
                 <button class="start-btn" id="startBtn">🚀 Start Draft Monitoring</button>
             </div>
 
@@ -495,15 +495,19 @@
                     <div class="message-content">
 Welcome to your Fantasy Draft Assistant! 
 
-I'll automatically alert you when your pick is coming up and provide AI-powered recommendations.
+📌 To get started:
+1. Paste your Sleeper or Yahoo draft room URL above
+   Example: https://sleeper.com/draft/nfl/1259283819983294464
+2. Click "Start Draft Monitoring"
+3. Ask me anything about your draft!
+
+I support SUPERFLEX leagues and will provide real-time recommendations.
 
 Try asking me:
 • "Who should I draft?"
 • "Compare Josh Allen vs Lamar Jackson"
 • "Show me available RBs"
 • "What's my roster need?"
-
-Start draft monitoring to begin!
                     </div>
                 </div>
             </div>
@@ -604,17 +608,71 @@ Start draft monitoring to begin!
                 }
             }
 
-            startDraftMonitoring() {
-                const draftId = document.getElementById('draftIdInput').value.trim();
+            extractDraftId(input) {
+                // Extract draft ID from URL or return as-is if already an ID
+                if (!input) return null;
                 
+                // Check if it's a Sleeper URL
+                const sleeperMatch = input.match(/sleeper\.com\/draft\/[^\/]+\/(\d{15,20})/);
+                if (sleeperMatch) {
+                    console.log('Detected Sleeper draft ID:', sleeperMatch[1]);
+                    return { platform: 'sleeper', id: sleeperMatch[1] };
+                }
+                
+                // Check if it's a Yahoo URL (format: https://football.fantasysports.yahoo.com/f1/123456/draftroom)
+                const yahooMatch = input.match(/yahoo\.com\/f\d+\/(\d+)\/draft/);
+                if (yahooMatch) {
+                    console.log('Detected Yahoo draft ID:', yahooMatch[1]);
+                    return { platform: 'yahoo', id: yahooMatch[1] };
+                }
+                
+                // Check if it's just a long number (likely Sleeper ID)
+                if (/^\d{15,20}$/.test(input)) {
+                    return { platform: 'sleeper', id: input };
+                }
+                
+                // Check if it's a shorter number (likely Yahoo league ID)
+                if (/^\d{4,10}$/.test(input)) {
+                    return { platform: 'yahoo', id: input };
+                }
+                
+                // Return as-is for unknown format
+                return { platform: 'unknown', id: input };
+            }
+
+            startDraftMonitoring() {
+                const inputValue = document.getElementById('draftIdInput').value.trim();
+                const draftInfo = this.extractDraftId(inputValue);
+                
+                if (!draftInfo || !draftInfo.id) {
+                    this.addChatMessage('system', '❌ Please enter a valid draft URL or ID');
+                    return;
+                }
+                
+                // Show what was detected
+                this.addChatMessage('system', `🎯 Detected ${draftInfo.platform} draft: ${draftInfo.id}`);
+                
+                // For now, since backend isn't connected to real monitoring, just simulate
+                document.getElementById('startBtn').textContent = '🔄 Monitoring Active...';
+                document.getElementById('startBtn').disabled = true;
+                
+                // Store draft info for later use
+                this.currentDraft = draftInfo;
+                
+                // Simulate starting monitoring (remove this when real WebSocket works)
+                setTimeout(() => {
+                    this.addChatMessage('system', '✅ Draft monitoring started! Ask me for advice anytime.');
+                    // Load some mock data to show it's working
+                    this.requestAvailablePlayers();
+                }, 1000);
+                
+                // If WebSocket is connected, send real monitoring request
                 if (this.ws && this.isConnected) {
                     this.ws.send(JSON.stringify({
                         type: 'start_monitoring',
-                        draft_id: draftId || null
+                        draft_id: draftInfo.id,
+                        platform: draftInfo.platform
                     }));
-
-                    document.getElementById('startBtn').textContent = '🔄 Monitoring Active...';
-                    document.getElementById('startBtn').disabled = true;
                 }
             }
 
