@@ -77,3 +77,21 @@ yarn-error.log*
 external/*/node_modules/
 external/*/.git/
 external/*/npm-debug.log*
+
+# AWS and sensitive deployment files
+**/agentcore_role.json
+**/agentcore_deployment.json
+**/*_permissions*.json
+**/*_policy*.json
+**/add_permissions_*.sh
+**/deploy_with_profile.sh
+**/*account*
+**/*credential*
+**/*secret*
+
+# Large sample repositories
+bedrock-agentcore/amazon-bedrock-agentcore-samples/
+
+# Agent Core deployment logs and temp files  
+fantasy-draft-agentcore.log
+**/venv/

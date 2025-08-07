@@ -341,19 +341,23 @@ class ConnectionManager:
             if api_key:
                 crew = FantasyDraftCrew(anthropic_api_key=api_key)
                 
-                # Get available players
+                # Get available players (basic data only for performance)
                 all_available = await monitor.client.get_available_players(
-                    monitor.draft_id, enhanced=True
+                    monitor.draft_id, enhanced=False
                 )
                 available_players = all_available[:20]  # Top 20 available
                 
                 player_names = [p['name'] for p in available_players[:10]]
                 
-                # Get AI recommendation
+                # Get AI recommendation with context
+                context = {
+                    "available_players": player_names,
+                    "picks_until_user_turn": picks_away,
+                    "user_turn": picks_away == 0
+                }
                 recommendation = await crew.get_draft_recommendation(
                     current_pick=current_pick,
-                    available_players=player_names,
-                    picks_until_user_turn=picks_away
+                    context=context
                 )
                 
                 await self.broadcast({
@@ -437,15 +441,50 @@ async def handle_chat_message(message: dict, websocket: WebSocket):
                 print("🤖 Creating CrewAI instance...")
                 
                 # Try simple response first to test
+                # Send thinking indicator for non-simple messages
+                if user_message.lower() not in ['hello', 'hi', 'test']:
+                    await manager.send_personal_message({
+                        "type": "chat_message",
+                        "sender": "ai", 
+                        "message": "🤔 Analyzing your question...",
+                        "timestamp": datetime.now().isoformat(),
+                        "thinking": True
+                    }, websocket)
+                
                 if user_message.lower() in ['hello', 'hi', 'test']:
                     response = "🤖 Hello! I'm your Fantasy Draft Assistant. I can help you with draft questions, player comparisons, and recommendations. Try asking 'Who should I draft?' or 'Compare Josh Allen vs Lamar Jackson'."
                     print("✅ Using simple greeting response")
                 else:
-                    # Try CrewAI for complex questions
-                    crew = FantasyDraftCrew(anthropic_api_key=api_key)
-                    print(f"🎯 Processing complex question: {user_message}")
-                    response = await crew.analyze_draft_question(user_message)
-                    print(f"✅ Got CrewAI response: {response[:100]}...")
+                    # Use FAST single agent instead of slow CrewAI
+                    from core.ai_assistant import FantasyAIAssistant
+                    
+                    # Get quick context
+                    context_info = ""
+                    if manager.draft_monitor:
+                        try:
+                            picks = await manager.draft_monitor.client.get_draft_picks(manager.draft_monitor.draft_id)
+                            current_pick = len(picks) + 1
+                            
+                            # Get top 5 available players (basic data only for speed)
+                            available = await manager.draft_monitor.client.get_available_players(
+                                manager.draft_monitor.draft_id, enhanced=False
+                            )
+                            top_available = [p['name'] for p in available[:5]]
+                            
+                            context_info = f"""
+Current Draft: Pick #{current_pick}, SUPERFLEX Half-PPR
+Top Available: {', '.join(top_available)}
+
+Question: {user_message}
+
+Provide a concise, actionable answer (2-3 sentences max)."""
+                        except:
+                            context_info = f"SUPERFLEX Half-PPR League Question: {user_message}"
+                    
+                    # Use fast single AI assistant
+                    ai_assistant = FantasyAIAssistant(anthropic_api_key=api_key)
+                    response = await ai_assistant.get_recommendation(context_info)
+                    print(f"✅ Got fast AI response: {response[:100]}...")
                 
                 await manager.send_personal_message({
                     "type": "chat_message", 
@@ -513,10 +552,13 @@ async def send_available_players(message: dict, websocket: WebSocket):
         position = message.get("position")
         limit = message.get("limit", 20)
         
+        # Use enhanced data only when specifically requested via chat
+        # For real-time updates, use basic data for performance  
+        enhanced = message.get("enhanced", False)
         available_players = await manager.draft_monitor.client.get_available_players(
             manager.draft_monitor.draft_id, 
             position=position,
-            enhanced=True
+            enhanced=enhanced
         )
         
         await manager.send_personal_message({
