@@ -574,8 +574,8 @@ class FantasyDraftCrew:
         print("🚀 Using optimized single-agent response...")
         
         try:
-            # Get SUPERFLEX rankings (cached for 5 minutes) - reduced for speed
-            raw_live_data = await get_cached_rankings_data(position="ALL", limit=30)  # Get more, then filter
+            # Get SUPERFLEX rankings - balance between coverage and speed
+            raw_live_data = await get_cached_rankings_data(position="ALL", limit=100)  # Reduced for faster response
             
             # Get draft context if available
             draft_context = ""
@@ -619,11 +619,19 @@ class FantasyDraftCrew:
                 
                 # Extract drafted player IDs from Sleeper draft picks 
                 # Sleeper API provides player_id directly in each draft pick
+                # IMPORTANT: Include keepers which may have metadata.is_keeper = true
                 drafted_sleeper_ids = set()
+                keeper_count = 0
                 for pick in draft_picks:
                     sleeper_player_id = pick.get('player_id')
                     if sleeper_player_id:
                         drafted_sleeper_ids.add(str(sleeper_player_id))
+                        # Check if this is a keeper pick
+                        metadata = pick.get('metadata', {})
+                        if metadata.get('is_keeper'):
+                            keeper_count += 1
+                
+                print(f"📊 Drafted players: {len(drafted_sleeper_ids)} total ({keeper_count} keepers)")
                 
                 # Use our unified player mapping system for robust filtering
                 # This solves the core issue of ID mismatches between platforms
@@ -700,14 +708,26 @@ class FantasyDraftCrew:
                                 sleeper_id = player_data.get('sleeper_id')
                                 if sleeper_id not in drafted_sleeper_ids:
                                     filtered_lines.append(line)
+                                else:
+                                    # Log when we filter out a drafted player
+                                    if 'Mooney' in player_name:
+                                        print(f"🚫 Filtered out drafted player: {player_name} (Sleeper ID: {sleeper_id})")
                             else:
                                 # If not in our mapping, include by default (might be newer player)
                                 # This prevents losing players due to incomplete mapping data
+                                if 'Mooney' in line:
+                                    print(f"⚠️ Including unmapped player: {player_name}")
                                 filtered_lines.append(line)
                     
                     # Create the formatted text data that the AI will read
-                    live_data = "AVAILABLE PLAYERS (EXCLUDING DRAFTED):\n" + "\n".join(filtered_lines[:15])
-                    print(f"🎯 Text filtering: {len(filtered_lines)} available from {len(lines)} total")
+                    # Show enough players for good recommendations but not too many for speed
+                    if len(filtered_lines) > 0:
+                        live_data = "AVAILABLE PLAYERS (EXCLUDING DRAFTED):\n" + "\n".join(filtered_lines[:30])
+                        print(f"🎯 Text filtering: {len(filtered_lines)} available from {len(lines)} total, showing top 30")
+                    else:
+                        # If no filtered lines, something went wrong - show unfiltered as fallback
+                        print(f"⚠️ No players after filtering! Showing unfiltered list")
+                        live_data = raw_live_data
                 else:
                     live_data = raw_live_data
                 
@@ -773,15 +793,10 @@ class FantasyDraftCrew:
                 CURRENT TOP PLAYERS:
                 {live_data}
                 
-                CRITICAL RULES FOR RECOMMENDATIONS:
-                1. **MANDATORY**: ONLY recommend players from the AVAILABLE PLAYERS list above - NEVER suggest players not in this list
-                2. **STRICTLY FORBIDDEN**: Do NOT recommend retired/inactive players like Todd Gurley, Antonio Brown, etc.
-                3. **VERIFICATION REQUIRED**: Before suggesting any player, confirm they appear in the AVAILABLE PLAYERS list
-                4. DO NOT recommend any players listed in "Recently Drafted" section  
-                5. PAY CLOSE ATTENTION to the "Position Summary" - it tells you what positions to prioritize or avoid
-                6. If Position Summary says "Avoid: QB" - DO NOT recommend QBs as primary picks
-                7. Focus on positions listed in "Top Priorities" from Position Summary
-                8. For SUPERFLEX: QBs are valuable, but after 3 QBs, focus on RB/WR/TE depth
+                KEY RULES:
+                1. ONLY recommend players from the AVAILABLE PLAYERS list above
+                2. Follow the Position Summary priorities
+                3. For SUPERFLEX: Balance QB value with roster needs
                 
                 RECOMMENDATION LOGIC:
                 • POSITION ELIGIBILITY: Only recommend QB, RB, WR, TE, K, DST (no individual defensive players)
