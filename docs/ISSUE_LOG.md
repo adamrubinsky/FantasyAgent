@@ -5,7 +5,7 @@ This document tracks all issues encountered during development, their root cause
 
 ---
 
-## August 5, 2025
+## August 5, 2025 (Day 1)
 
 ### Issue #1: Roster ID Assignment Bug
 **Severity**: 🔴 Critical  
@@ -76,9 +76,100 @@ available = available[:30]
 
 ---
 
-## November 8, 2024 (Day 5)
+## August 6, 2025 (Day 2)
 
-### Issue #4: FantasyPros API Parameter Case Sensitivity
+### Issue #4: FastAPI Python 3.13 Compatibility
+**Severity**: 🟡 Medium  
+**Component**: `requirements.txt`  
+**Discovered**: When starting development server
+
+**Problem**:
+- FastAPI version conflict with Python 3.13
+- Server wouldn't start due to version incompatibility
+
+**Root Cause**:
+- Older FastAPI version not compatible with Python 3.13
+
+**Solution**:
+```bash
+# Upgraded FastAPI to compatible version
+pip install fastapi==0.116.1
+```
+
+**Status**: ✅ RESOLVED
+
+---
+
+## August 7, 2025 (Day 3)
+
+### Issue #5: User Roster Tracking Broken
+**Severity**: 🔴 Critical  
+**Component**: `agents/draft_crew.py`  
+**Discovered**: During live testing
+
+**Problem**:
+- System showed "Your Picks So Far: 0" even after drafting
+- AI kept recommending QBs when user already had 2
+- Draft context not updating with user's actual picks
+
+**Root Cause**:
+- User roster not being properly tracked/stored
+- Draft picks not linked to user's roster ID
+
+**Solution**:
+- Fixed roster tracking logic
+- Properly linked draft picks to user roster
+- Enhanced context passing to AI agents
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #6: Drafted Players Still Being Recommended
+**Severity**: 🔴 Critical  
+**Component**: `agents/draft_crew.py`  
+**Discovered**: AI recommending Patrick Mahomes after he was drafted
+
+**Problem**:
+- AI recommended already-drafted players
+- Filter wasn't working correctly
+
+**Root Cause**:
+- Player ID mismatch between Sleeper and FantasyPros
+- Sleeper uses different IDs than FantasyPros (e.g., Josh Allen: '4984' vs 17298)
+
+**Solution**:
+- Changed to name-based filtering instead of ID
+- Created comprehensive 11,389 player mapping system
+- Implemented fuzzy matching for name variations
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #7: Wrong Lamar Jackson ID
+**Severity**: 🔴 Critical  
+**Component**: `data/player_id_mapping.json`  
+**Discovered**: When filtering drafted players
+
+**Problem**:
+- System had two Lamar Jacksons (IDs 4881 and 6994)
+- Wrong one was being used (inactive player)
+
+**Root Cause**:
+- Duplicate players in database
+- No prioritization for active players
+
+**Solution**:
+- Implemented smart resolution prioritizing active players
+- Added fantasy-relevant player detection
+- Fixed duplicate handling in mapping
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #8: FantasyPros API Parameter Case Sensitivity
 **Severity**: 🟡 Medium  
 **Component**: `core/official_fantasypros.py`  
 **Discovered**: When fetching rankings
@@ -105,7 +196,7 @@ params = {
 
 ---
 
-### Issue #5: Sleeper search_rank Misconception
+### Issue #9: Sleeper search_rank Misconception
 **Severity**: 🔴 Critical  
 **Component**: `api/sleeper_client.py`  
 **Discovered**: When analyzing player rankings
@@ -126,9 +217,34 @@ params = {
 
 ---
 
+### Issue #10: Snake Draft Position Calculation
+**Severity**: 🟡 Medium  
+**Component**: `core/draft_monitor.py`  
+**Discovered**: Testing draft position logic
+
+**Problem**:
+- Incorrect pick numbers in snake draft
+- User's actual pick position not matching calculations
+
+**Root Cause**:
+- Snake draft logic not accounting for even rounds reversing
+
+**Solution**:
+```python
+# Fixed snake draft calculation
+if round_num % 2 == 1:  # Odd rounds: normal order
+    pick_in_round = roster_position
+else:  # Even rounds: reverse order
+    pick_in_round = total_rosters - roster_position + 1
+```
+
+**Status**: ✅ RESOLVED
+
+---
+
 ## August 8, 2025 (Day 4)
 
-### Issue #6: SUPERFLEX Rankings Not Available
+### Issue #11: SUPERFLEX Rankings Not Available
 **Severity**: 🔴 Critical  
 **Component**: `core/official_fantasypros.py`  
 **Discovered**: User reported Tyreek Hill at #33 instead of #47
@@ -153,7 +269,7 @@ if position == "SUPERFLEX":
 
 ---
 
-### Issue #7: CrewAI Authentication Failure
+### Issue #12: CrewAI Authentication Failure
 **Severity**: 🔴 Critical  
 **Component**: `agents/draft_crew.py`  
 **Discovered**: When initializing CrewAI with Anthropic
@@ -185,7 +301,7 @@ llm = LLM(
 
 ---
 
-### Issue #8: Available Players Not Showing in AI Context
+### Issue #13: Available Players Not Showing in AI Context
 **Severity**: 🔴 Critical  
 **Component**: `agents/draft_crew.py`  
 **Discovered**: During mock draft testing
@@ -207,7 +323,7 @@ llm = LLM(
 
 ---
 
-### Issue #9: Proactive Recommendations Not Triggering
+### Issue #14: Proactive Recommendations Not Triggering
 **Severity**: 🟡 Medium  
 **Component**: `dev_server.py`  
 **Discovered**: Mock draft testing
@@ -229,7 +345,7 @@ llm = LLM(
 
 ---
 
-### Issue #10: 45-Second Response Time
+### Issue #15: 45-Second Response Time
 **Severity**: 🟡 Medium  
 **Component**: `agents/draft_crew.py`  
 **Discovered**: User feedback during testing
@@ -253,7 +369,7 @@ llm = LLM(
 
 ---
 
-### Issue #11: Keeper Players Being Recommended
+### Issue #16: Keeper Players Being Recommended
 **Severity**: 🟡 Medium  
 **Component**: `agents/draft_crew.py`  
 **Discovered**: Darnell Mooney recommended despite being keeper
@@ -279,7 +395,7 @@ for pick in draft_picks:
 
 ---
 
-### Issue #12: Cross-Platform Player ID Mismatch
+### Issue #17: Cross-Platform Player ID Mismatch
 **Severity**: 🟡 Medium  
 **Component**: Multiple  
 **Discovered**: When mapping FantasyPros to Sleeper players
@@ -301,7 +417,7 @@ for pick in draft_picks:
 
 ---
 
-### Issue #13: 2025 Rookie Data Verification
+### Issue #18: 2025 Rookie Data Verification
 **Severity**: 🟢 Low  
 **Component**: Data validation  
 **Discovered**: User requested verification
@@ -324,7 +440,78 @@ for pick in draft_picks:
 
 ## Ongoing Issues
 
-### Issue #14: File Structure Needs Cleanup
+### Issue #19: AI Over-Recommending QBs
+**Severity**: 🟡 Medium  
+**Component**: `agents/draft_crew.py`  
+**Discovered**: User had 3 QBs, AI recommended 3 more
+
+**Problem**:
+- AI not respecting roster balance
+- Over-indexing on SUPERFLEX QB value
+- Ignoring positional needs (RB/WR depth)
+
+**Root Cause**:
+- Generic prompts not understanding roster balance
+- SUPERFLEX emphasis overwhelming other needs
+
+**Solution**:
+- Enhanced position summary with avoid/prioritize guidance
+- Stronger rules based on roster composition
+- Bye week analysis to prevent stacking
+- Context-aware prompts adapting to roster state
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #20: Sleeper API Player Name Parsing
+**Severity**: 🟡 Medium  
+**Component**: `api/sleeper_client.py`  
+**Discovered**: Player names showing as "None"
+
+**Problem**:
+- Draft picks showing without player names
+- Wrong field being accessed
+
+**Root Cause**:
+- Sleeper API uses metadata.first_name + metadata.last_name
+- Not player_name field
+
+**Solution**:
+```python
+# Fixed name parsing
+first_name = metadata.get('first_name', '')
+last_name = metadata.get('last_name', '')
+player_name = f"{first_name} {last_name}".strip()
+```
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #21: F-String Nesting Syntax Error
+**Severity**: 🟢 Low  
+**Component**: `dev_server.py`  
+**Discovered**: When formatting draft display
+
+**Problem**:
+- Syntax error in nested f-strings
+- Can't use quotes inside f-string expressions
+
+**Root Cause**:
+- Incorrect f-string syntax
+
+**Solution**:
+```python
+# Fixed by using different quotes
+f"Player: {pick.get('metadata', {}).get('first_name', 'Unknown')}"
+```
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #22: File Structure Needs Cleanup
 **Severity**: 🟢 Low  
 **Component**: Project organization  
 **Discovered**: Multiple test files accumulated
@@ -361,13 +548,77 @@ for pick in draft_picks:
 
 ---
 
+### Issue #23: MCP Server Connection Issues
+**Severity**: 🟡 Medium  
+**Component**: `core/mcp_integration.py`  
+**Discovered**: When connecting to FantasyPros MCP
+
+**Problem**:
+- Intermittent connection failures to MCP servers
+- Timeout errors during initialization
+
+**Root Cause**:
+- No retry logic for MCP connections
+- Hardcoded timeouts too short
+
+**Solution**:
+- Added exponential backoff retry logic
+- Increased timeout to 30 seconds
+- Added fallback to cached data
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #24: Cache Invalidation Logic
+**Severity**: 🟢 Low  
+**Component**: `core/official_fantasypros.py`  
+**Discovered**: Rankings not updating
+
+**Problem**:
+- 4-hour cache TTL too long for draft day
+- Stale rankings during critical moments
+
+**Root Cause**:
+- Fixed TTL not appropriate for all scenarios
+
+**Solution**:
+- Dynamic TTL: 5 minutes during draft, 4 hours otherwise
+- Manual cache clear option
+- Timestamp tracking for cache freshness
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #25: WebSocket Reconnection Failures
+**Severity**: 🟡 Medium  
+**Component**: `templates/dev.html`  
+**Discovered**: During extended sessions
+
+**Problem**:
+- WebSocket not reconnecting after disconnect
+- Users losing real-time updates
+
+**Root Cause**:
+- Missing reconnection logic in JavaScript
+
+**Solution**:
+- Added exponential backoff reconnection
+- Connection status indicator
+- Manual reconnect button as fallback
+
+**Status**: ✅ RESOLVED
+
+---
+
 ## Statistics
 
-**Total Issues**: 14  
-**Resolved**: 13  
+**Total Issues**: 25  
+**Resolved**: 24  
 **Pending**: 1  
-**Critical Issues**: 6  
-**Resolution Rate**: 92.8%  
+**Critical Issues**: 10  
+**Resolution Rate**: 96%  
 
 **Average Resolution Time**:
 - Critical: Same day
