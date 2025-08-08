@@ -300,6 +300,25 @@ YAHOO_CLIENT_SECRET=from-yahoo-developer
 4. **Test with real data** - Use your actual league
 5. **Have backups** - Export rankings, have manual fallback
 6. **Remember superflex** - QBs are worth way more!
+7. **DISCOVERED**: **Balance SUPERFLEX value with roster needs** - Don't over-index on QBs when other positions needed
+
+## Key Lessons Learned (Day 4)
+
+### Recommendation Engine Calibration Challenge
+**Problem**: AI over-recommending QBs in SUPERFLEX even when user already has sufficient depth
+**Example**: User with 3 QBs getting recommended 3 more QBs instead of needed RB/WR depth
+
+**Root Issues**:
+- Generic AI prompts don't understand positional roster balance
+- SUPERFLEX format emphasis can overwhelm position-specific needs
+- Lack of explicit "avoid" guidance when positions are sufficiently filled
+
+**Solution Strategy**:
+- Enhanced position summary with explicit avoid/prioritize guidance
+- Stronger recommendation rules based on roster composition
+- Bye week analysis to prevent player stacking
+- Better integration of FantasyPros SUPERFLEX rankings
+- Context-aware prompts that adapt to current roster state
 
 ## Success Metrics
 
@@ -357,3 +376,58 @@ with open('players.json') as f:
 ---
 
 *This document contains all context needed to build the fantasy football draft assistant. Start with the 9-day sprint plan and focus on MVP features for the August 14th draft. Remember: superflex changes everything about QB values!*
+
+---
+
+## API Integration Solutions (November 8, 2024)
+
+### SOLVED: The SUPERFLEX Rankings Problem
+
+**Discovery**: FantasyPros API DOES support SUPERFLEX rankings!
+- Use `position: 'OP'` (Offensive Player) instead of 'ALL'
+- This returns true SUPERFLEX rankings with QBs properly valued
+- Tyreek Hill correctly appears at #47 (not #30 from standard rankings)
+
+**Working API Call**:
+```python
+params = {
+    'position': 'OP',    # OP = Offensive Player = SUPERFLEX rankings!
+    'scoring': 'HALF',   # Half-PPR scoring
+    'type': 'DRAFT',     # Draft rankings (not weekly)
+    'week': 0            # Season-long rankings
+}
+```
+
+**Results**:
+- Top 5: Josh Allen, Lamar Jackson, Jayden Daniels, Jalen Hurts, Joe Burrow (all QBs!)
+- Tyreek Hill: Rank #47 (correct SUPERFLEX position)
+- Total players: 602 (complete draft coverage)
+
+### Key API Discoveries
+
+1. **Parameter Case Sensitivity**
+   - All parameters must be UPPERCASE ('DRAFT' not 'draft')
+   - URL path: `/json/nfl/{year}/consensus-rankings`
+   - API key goes in header (`x-api-key`), not query params
+
+2. **Field Name Mapping**
+   ```python
+   player_name        # Player's full name
+   player_position_id # Position (QB, RB, WR, etc.)
+   player_team_id     # Team abbreviation (BUF, MIA, etc.)
+   rank_ecr          # Expert Consensus Ranking
+   rank_ave          # Average rank (use as ADP proxy)
+   ```
+
+3. **Sleeper Fallback Limitations**
+   - `search_rank` is popularity, NOT fantasy ranking
+   - No pre-calculated rankings available
+   - Must use ADP or other metrics for fallback
+
+### Cross-Platform Player Matching Strategy
+
+Since FantasyPros and Sleeper use different player IDs:
+1. Primary: Name-based matching (exact match first)
+2. Secondary: Fuzzy matching for variations
+3. Tertiary: Team + position validation
+4. Fallback: Manual mapping table for problem players

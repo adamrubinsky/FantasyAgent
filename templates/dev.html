@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Draft Assistant - DEV MODE</title>
+    
+    <!-- Aggressive no-cache headers -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --border: #475569;
+            --dev-accent: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .dev-banner {
+            background: linear-gradient(90deg, var(--dev-accent), var(--primary-color));
+            color: white;
+            padding: 0.5rem 1rem;
+            text-align: center;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: calc(100vh - 40px);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .main-panel, .chat-panel {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface-light);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--secondary-color);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .connection-panel {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .draft-id-input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+        }
+
+        .start-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--secondary-color);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            background: #059669;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            min-height: 500px;
+            max-height: 70vh;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .message.user .message-avatar {
+            background: var(--primary-color);
+        }
+
+        .message.ai .message-avatar {
+            background: var(--secondary-color);
+        }
+
+        .message.system .message-avatar {
+            background: var(--warning-color);
+        }
+
+        .message-content {
+            flex: 1;
+            background: var(--surface-light);
+            padding: 0.75rem;
+            border-radius: 12px;
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-content {
+            background: var(--primary-color);
+            text-align: right;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 0.75rem;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .dev-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid var(--dev-accent);
+            border-radius: 8px;
+        }
+
+        .dev-status {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .proactive-panel {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 2px solid var(--secondary-color);
+            margin-top: 1rem;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { border-color: var(--secondary-color); }
+            to { border-color: #059669; }
+        }
+
+        .proactive-content {
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="dev-banner">
+        🚀 DEVELOPMENT MODE - Real AI Agents - No Cache - Port 3000
+    </div>
+
+    <div class="container">
+        <!-- Main Panel -->
+        <div class="main-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    🤖 Fantasy Draft Assistant - DEV MODE
+                    <div class="status-indicator" id="connectionStatus"></div>
+                </div>
+            </div>
+
+            <div class="connection-panel">
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" class="draft-id-input" id="draftIdInput" 
+                           placeholder="Paste Sleeper draft URL (or just ID)">
+                    <input type="number" class="draft-id-input" id="rosterIdInput" 
+                           placeholder="Your Roster #" min="1" max="12" style="text-align: center;">
+                </div>
+                <div style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 10px;">
+                    💡 <strong>Roster #:</strong> Check your team name in the draft lobby - Team 1, Team 2, etc. This helps me track your picks!
+                </div>
+                <button class="start-btn" id="startBtn">🚀 Start Draft Monitoring</button>
+            </div>
+
+            <!-- Proactive Recommendations Panel -->
+            <div class="proactive-panel" id="proactivePanel" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title">🎯 Proactive Analysis</div>
+                </div>
+                <div class="proactive-content" id="proactiveContent">
+                    <div style="text-align: center; color: var(--text-secondary); padding: 1rem;">
+                        Proactive recommendations will appear here when you're 6 or 3 picks away from your turn.
+                    </div>
+                </div>
+            </div>
+
+            <div class="dev-info">
+                <h4>🧪 Development Features</h4>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li>Real CrewAI multi-agent system</li>
+                    <li>Live Sleeper API integration</li>
+                    <li>Auto-reload on code changes</li>
+                    <li>No browser caching</li>
+                    <li>Enhanced error logging</li>
+                </ul>
+                <div class="dev-status" id="devStatus">Loading agent status...</div>
+            </div>
+
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="chat-panel">
+            <div class="panel-header">
+                <div class="panel-title">💬 AI Chat (Real Agents)</div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+Welcome to the Fantasy Draft Assistant DEV MODE! 
+
+This version uses:
+• Real CrewAI multi-agent system
+• Live FantasyPros rankings 
+• Sleeper API integration
+• SUPERFLEX league awareness
+
+Try asking:
+• "Who should I draft in the 1st round?"
+• "Compare Josh Allen vs Lamar Jackson"
+• "What's the best SUPERFLEX strategy?"
+
+All responses come from the real AI agents!
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Ask the AI agents anything...">
+                <button class="send-btn" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DevFantasyAssistant {
+            constructor() {
+                this.initializeUI();
+                this.checkDevStatus();
+                this.addCacheBusting();
+            }
+
+            addCacheBusting() {
+                // Add cache buster to all future requests
+                this.cacheBuster = Date.now();
+                console.log('🔄 Cache buster active:', this.cacheBuster);
+            }
+
+            async checkDevStatus() {
+                try {
+                    const response = await fetch('/api/dev-status');
+                    const status = await response.json();
+                    
+                    document.getElementById('devStatus').innerHTML = `
+                        <strong>Agent Status:</strong><br>
+                        • Sleeper API: ${status.agents_loaded.sleeper_client ? '✅' : '❌'}<br>
+                        • FantasyPros: ${status.agents_loaded.fantasypros_client ? '✅' : '❌'}<br>
+                        • CrewAI: ${status.agents_loaded.draft_crew ? '✅' : '❌'}<br>
+                        • Cache Buster: ${status.cache_buster}
+                    `;
+                } catch (error) {
+                    console.error('Failed to get dev status:', error);
+                }
+            }
+
+            initializeUI() {
+                // Chat input handlers
+                document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendChatMessage();
+                    }
+                });
+
+                document.getElementById('sendBtn').addEventListener('click', () => {
+                    this.sendChatMessage();
+                });
+
+                // Start button
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    this.startDraftMonitoring();
+                });
+            }
+
+            async sendChatMessage() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                
+                if (!message) return;
+                
+                // Add user message
+                this.addChatMessage('user', message);
+                input.value = '';
+                
+                // Show thinking indicator
+                this.addChatMessage('system', '🤖 AI agents are analyzing...');
+                
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        },
+                        body: JSON.stringify({ 
+                            message,
+                            cache_buster: this.cacheBuster 
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Remove thinking indicator
+                    this.removeLastSystemMessage();
+                    
+                    if (data.success) {
+                        this.addChatMessage('ai', 
+                            data.response + 
+                            `\\n\\n🔬 ${data.agent_type} | Agents: ${data.agents_used?.join(', ') || 'N/A'}`
+                        );
+                    } else {
+                        this.addChatMessage('system', 
+                            `❌ Error: ${data.error}` + 
+                            (data.fallback_response ? `\\n\\n${data.fallback_response}` : '')
+                        );
+                    }
+                } catch (error) {
+                    this.removeLastSystemMessage();
+                    this.addChatMessage('system', `❌ Connection error: ${error.message}`);
+                }
+            }
+
+            async startDraftMonitoring() {
+                const draftInput = document.getElementById('draftIdInput').value.trim();
+                const rosterIdInput = document.getElementById('rosterIdInput').value.trim();
+                const startBtn = document.getElementById('startBtn');
+                
+                if (!draftInput) {
+                    this.addChatMessage('system', '📝 Please enter your Sleeper draft URL first!');
+                    return;
+                }
+                
+                if (!rosterIdInput) {
+                    this.addChatMessage('system', '📝 Please enter your Roster # (1-12) so I can track your picks!');
+                    return;
+                }
+                
+                startBtn.disabled = true;
+                startBtn.textContent = '🔄 Connecting...';
+                this.addChatMessage('system', `🎯 Connecting to draft: ${draftInput}`);
+                this.addChatMessage('system', `👤 Your Roster ID: ${rosterIdInput}`);
+                
+                try {
+                    const response = await fetch('/api/start-draft-monitoring', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        },
+                        body: JSON.stringify({ 
+                            draft_url: draftInput,
+                            user_roster_id: parseInt(rosterIdInput),
+                            cache_buster: this.cacheBuster 
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addChatMessage('system', 
+                            `✅ Connected to draft: ${result.message}\\n` +
+                            `📊 Teams: ${result.teams}\\n` +
+                            `🏷️ Draft ID: ${result.draft_id}\\n` +
+                            `👤 Your Roster ID: ${result.user_roster_id || 'Not found'}`
+                        );
+                        startBtn.textContent = '📡 Monitoring Active';
+                        startBtn.style.background = '#059669';
+                        
+                        // Start polling for draft updates
+                        this.startDraftPolling();
+                        
+                    } else {
+                        this.addChatMessage('system', `❌ Connection failed: ${result.error}`);
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🚀 Start Draft Monitoring';
+                    }
+                    
+                } catch (error) {
+                    this.addChatMessage('system', `❌ Connection error: ${error.message}`);
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🚀 Start Draft Monitoring';
+                }
+            }
+            
+            startDraftPolling() {
+                // Track seen picks to prevent duplicates
+                this.seenPicks = new Set();
+                
+                // Poll for draft updates every 10 seconds
+                this.draftPolling = setInterval(async () => {
+                    try {
+                        const response = await fetch('/api/draft-status');
+                        const data = await response.json();
+                        
+                        if (data.success && data.draft_status) {
+                            const status = data.draft_status;
+                            
+                            // Check for new picks (avoid duplicates)
+                            if (status.new_picks && status.new_picks.length > 0) {
+                                for (const pick of status.new_picks) {
+                                    const pickKey = `${pick.pick_no}_${pick.player_name || 'Unknown'}`;
+                                    if (!this.seenPicks.has(pickKey) && pick.player_name && pick.player_name !== 'Unknown Player') {
+                                        this.seenPicks.add(pickKey);
+                                        this.addChatMessage('system', 
+                                            `🏈 PICK ${pick.pick_no}: ${pick.player_name} (${pick.position || 'Unknown'}) to Team ${pick.roster_id}`
+                                        );
+                                    }
+                                }
+                            }
+                            
+                            // Handle proactive recommendations in separate panel
+                            if (status.proactive_recommendation && status.proactive_recommendation.proactive_generated) {
+                                const proactive = status.proactive_recommendation;
+                                this.updateProactivePanel(proactive);
+                                
+                                // Also add a brief notification to chat
+                                this.addChatMessage('system', 
+                                    `🎯 New ${proactive.trigger_type} proactive analysis generated (${proactive.picks_ahead} picks ahead) - check the recommendations panel!`
+                                );
+                            }
+                            
+                            // Update status (prevent spam)
+                            if (status.picks_until_user !== null) {
+                                if (status.picks_until_user === 0 && (!this.lastPickStatus || this.lastPickStatus !== 0)) {
+                                    this.addChatMessage('system', '🚨 YOUR TURN TO PICK! 🚨');
+                                } else if (status.picks_until_user <= 3 && (!this.lastPickStatus || this.lastPickStatus !== status.picks_until_user)) {
+                                    this.addChatMessage('system', `⏰ ${status.picks_until_user} picks until your turn`);
+                                }
+                                this.lastPickStatus = status.picks_until_user;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Draft polling error:', error);
+                    }
+                }, 10000); // Poll every 10 seconds
+            }
+
+            addChatMessage(sender, message) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const avatar = sender === 'user' ? '👤' : 
+                              sender === 'ai' ? '🤖' : '🔔';
+                
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">${message}</div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            removeLastSystemMessage() {
+                const messages = document.querySelectorAll('.message.system');
+                if (messages.length > 0) {
+                    const lastSystem = messages[messages.length - 1];
+                    if (lastSystem.textContent.includes('analyzing')) {
+                        lastSystem.remove();
+                    }
+                }
+            }
+
+            updateProactivePanel(proactive) {
+                const panel = document.getElementById('proactivePanel');
+                const content = document.getElementById('proactiveContent');
+                
+                // Show the panel
+                panel.style.display = 'block';
+                
+                // Update content
+                content.innerHTML = `
+                    <div style="background: rgba(16, 185, 129, 0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; border-left: 3px solid var(--secondary-color);">
+                        <strong>🎯 ${proactive.trigger_type.toUpperCase()} ANALYSIS</strong><br>
+                        <small>${proactive.picks_ahead} picks until your turn</small>
+                    </div>
+                    <div style="line-height: 1.6;">
+                        ${proactive.recommendation.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+                
+                // Scroll to show the panel
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            window.app = new DevFantasyAssistant();
+            console.log('🚀 Fantasy Draft Assistant DEV MODE initialized');
+        });
+
+        // Prevent caching
+        window.addEventListener('beforeunload', () => {
+            // Force refresh next time
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                });
+            }
+        });
+    </script>
+</body>
+</html>

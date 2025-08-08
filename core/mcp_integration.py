@@ -115,6 +115,7 @@ class MCPClient:
             Tool response as a dictionary
         """
         # Priority 1: Try official FantasyPros MCP server
+        # TEMPORARY: Re-enable after testing Sleeper fallback
         if self.official_client and tool_name == 'get_rankings':
             try:
                 if await self.official_client.is_server_available():

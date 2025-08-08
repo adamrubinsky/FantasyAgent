@@ -26,6 +26,14 @@ FantasyAgent/
 │       ├── mcp_integration.py     # MCP client wrapper
 │       └── rankings_manager.py    # Data aggregation logic
 │
+├── 🛠 Utilities (NEW - Day 4)
+│   └── utils/
+│       └── player_mapping.py      # Cross-platform player ID resolution
+│
+├── 📜 Scripts (NEW - Day 4)
+│   └── scripts/
+│       └── create_player_mapping.py # Generate unified player mapping
+│
 ├── 🔗 MCP Servers
 │   └── mcp_servers/
 │       └── fantasypros_mcp.py     # Custom MCP server (fallback)

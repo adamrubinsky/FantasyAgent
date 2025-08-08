@@ -874,14 +874,59 @@ def get_rankings(
             
         except Exception as e:
             print(f"❌ Failed to fetch live data: {e}")
-            print("🔄 Using mock data as fallback...")
+            print("🔄 Using Sleeper API as fallback...")
             
-            # Fall back to mock data
-            rankings_key = f"{league_type}_{scoring_format}".lower()
-            if rankings_key in MOCK_RANKINGS:
-                rankings_data = MOCK_RANKINGS[rankings_key].copy()
-            else:
-                rankings_data = MOCK_RANKINGS["superflex_half_ppr"].copy()
+            # Fall back to Sleeper rankings instead of mock data
+            try:
+                from agents.draft_crew import get_sleeper_rankings_fallback
+                sleeper_result = get_sleeper_rankings_fallback()
+                
+                if not sleeper_result.startswith("ERROR:"):
+                    # Parse Sleeper rankings into our format
+                    rankings_data = {"players": [], "data_source": "sleeper_fallback"}
+                    lines = sleeper_result.split('\n')[1:]  # Skip header
+                    
+                    for line in lines:
+                        if ' (' in line and ') - Rank:' in line:
+                            # Parse: "Player Name (POS) - Rank: X, ADP: Y, Team: Z"
+                            parts = line.split(' (')
+                            if len(parts) >= 2:
+                                name = parts[0].strip()
+                                rest = parts[1]
+                                pos_end = rest.find(')')
+                                if pos_end != -1:
+                                    position = rest[:pos_end]
+                                    # Extract rank and other info
+                                    rank_part = rest[pos_end+1:]
+                                    if 'Rank:' in rank_part:
+                                        try:
+                                            rank = int(rank_part.split('Rank: ')[1].split(',')[0])
+                                            rankings_data["players"].append({
+                                                "name": name,
+                                                "position": position,
+                                                "rank": rank,
+                                                "source": "sleeper"
+                                            })
+                                        except (ValueError, IndexError):
+                                            continue
+                    
+                    print(f"✅ Successfully converted {len(rankings_data['players'])} Sleeper rankings")
+                else:
+                    raise Exception("Sleeper fallback also failed")
+                    
+            except Exception as sleeper_error:
+                print(f"❌ Sleeper fallback also failed: {sleeper_error}")
+                print("🔄 Using mock data as last resort...")
+                
+                # Last resort: Fall back to mock data
+                rankings_key = f"{league_type}_{scoring_format}".lower()
+                if rankings_key in MOCK_RANKINGS:
+                    rankings_data = MOCK_RANKINGS[rankings_key].copy()
+                else:
+                    rankings_data = MOCK_RANKINGS["superflex_half_ppr"].copy()
+                
+                rankings_data["data_source"] = "mock_fallback"
+                rankings_data["cache_note"] = "Using mock data - both FantasyPros and Sleeper failed"
     
     if not rankings_data:
         return {

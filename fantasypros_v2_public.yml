@@ -1,0 +1,4711 @@
+openapi: 3.1.1
+info:
+  title: FantasyPros Public API
+  description: >-
+    This is the free limited public API. To request an API key contact us at
+    api@fantasypros.com.
+  contact:
+    name: FantasyPros
+    url: https://www.fantasypros.com
+    email: api@fantasypros.com
+  version: '2.0'
+  termsOfService: https://api.fantasypros.com/public/v2/terms-of-use
+  x-logo:
+    url: >-
+      https://images.fantasypros.com/images/branding/fantasypros-fullcolor-light-bg.svg
+    altText: FantasyPros logo
+servers:
+  - url: https://api.fantasypros.com/public/v2/json
+paths:
+  /{sport}/players:
+    get:
+      summary: Players
+      parameters:
+        - $ref: '#/components/parameters/Sport'
+        - name: player
+          description: A FantasyPros player ID to filter results on
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: null
+            example: 6880
+        - name: update
+          description: >-
+            Only return players that have been updated since this date. Format
+            YYYY-MM-DD
+          in: query
+          required: false
+          schema:
+            type: string
+            default: null
+            example: '2025-05-13'
+        - name: ecr
+          description: >-
+            A flag on whether to include or exclude players that are in
+            consensus rankings.
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - included
+              - excluded
+              - null
+            default: null
+            example: included
+        - name: external_ids
+          in: query
+          description: >-
+            Colon-delimited string of external IDs to include in the player
+            object
+          required: false
+          schema:
+            type: string
+            pattern: ^(\w+)((?:\:\w+)+)?$
+            default: null
+            enum:
+              - yahoo
+              - espn
+              - cbs
+              - rts
+              - fanduel
+              - draftkings
+              - fantasydraft
+              - rotogrinders
+              - fleaflicker
+              - rotowire
+              - rotoworld
+              - numberfire
+              - fantrax
+              - nfl
+              - mfl
+              - tsn
+              - onroto
+              - xmlteam
+              - ffwc
+              - mlbam
+              - nba
+              - null
+            example: yahoo:espn:cbs
+        - name: show
+          in: query
+          description: Show the players positional consensus ranking in addition to overall
+          required: false
+          schema:
+            type: string
+            default: null
+            enum:
+              - pos_rank
+              - null
+            example: pos_rank
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLPlayerResponse'
+                  - $ref: '#/components/schemas/MLBPlayerResponse'
+                  - $ref: '#/components/schemas/NBAPlayerResponse'
+                  - $ref: '#/components/schemas/NHLPlayerResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLPlayerResponse'
+                    MLB: '#/components/schemas/MLBPlayerResponse'
+                    NBA: '#/components/schemas/NBAPlayerResponse'
+                    NHL: '#/components/schemas/NHLPlayerResponse'
+      security:
+        - api_key: []
+  /{sport}/news:
+    get:
+      summary: News
+      description: Returns player news updates by sport
+      parameters:
+        - $ref: '#/components/parameters/Sport'
+        - name: MLBAMID
+          description: A MLBAM player ID. Only used for MLB
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 701350
+            default: null
+        - name: fpid
+          description: A FantasyPros player id to filter returned news
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 6880
+            default: null
+        - name: limit
+          description: The number of news items to be returned
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            default: 25
+        - name: category
+          description: The type of news items to return
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - injury
+              - recap
+              - transaction
+              - rumor
+              - breaking
+              - null
+            default: null
+        - name: order_by
+          description: The order by direction for the news items
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - updated
+              - created
+            default: created
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sport
+                  - title
+                  - description
+                  - count
+                  - items
+                properties:
+                  sport:
+                    type: string
+                    example: MLB
+                  title:
+                    type: string
+                    example: Fantasy Player News
+                  description:
+                    type: string
+                    example: >-
+                      Breaking Fantasy Baseball player news along with the
+                      impact for fantasy managers
+                  count:
+                    type: integer
+                    example: 25
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - created
+                        - created_formated
+                        - author
+                        - player_id
+                        - team_id
+                        - title
+                        - sport_id
+                        - categories
+                        - link
+                        - desc
+                        - impact
+                      properties:
+                        id:
+                          type: integer
+                          example: 51970
+                        created:
+                          type: string
+                          example: '2025-05-12 07:29:02'
+                        created_formated:
+                          type: string
+                          example: Mon, May 12th 7:29am UTC
+                        author:
+                          type: string
+                          example: Ari Koslow
+                        player_id:
+                          $ref: '#/components/schemas/PlayerId'
+                        team_id:
+                          $ref: '#/components/schemas/TeamId'
+                        title:
+                          type: string
+                          example: Caleb Freeman optioned to Triple-A
+                        sport_id:
+                          type: string
+                          example: MLB
+                        categories:
+                          type: array
+                          items:
+                            type: string
+                          example:
+                            - Commentary
+                            - News
+                        link:
+                          type: string
+                          format: url
+                          example: >-
+                            https://www.fantasypros.com/mlb/news/519470/caleb-freeman-optioned-to-triple-a.php
+                        desc:
+                          type: string
+                          example: >-
+                            The White Sox optioned RHP Caleb Freeman to Triple-A
+                            Charlotte.
+                        impact:
+                          type: string
+                          example: >-
+                            Freeman is sent back down one week after he had his
+                            contract selected. The White Sox needed to open a
+                            roster spot after claiming Yoendys Gómez off waivers
+                            from the Dodgers.
+      security:
+        - api_key: []
+  /{sport}/injuries:
+    get:
+      summary: Injuries
+      description: Returns details about player injuries.
+      parameters:
+        - $ref: '#/components/parameters/Sport'
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2025
+        - name: week
+          description: NFL week to request injuries for. (NFL ONLY)
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: include_minors
+          description: Include minor league players as injury statuses (MLB ONLY)
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+            example: 'true'
+        - name: include_probabilities
+          description: >-
+            Include players that might not have an injury status but are on the
+            practice report. (NFL ONLY)
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+            example: 'true'
+        - name: team_id
+          description: Colon delimited list of team_ids to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/wordColon'
+          examples:
+            singleTeam:
+              summary: A single team_id
+              value: SF
+            multipleTeams:
+              summary: Multiple team_ids
+              value: SF:MIN
+        - name: player_ids
+          description: Colon delimited list of FP player IDs to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/digitColon'
+          examples:
+            singlePlayer:
+              summary: A single player
+              value: '7354'
+            multiplePlayers:
+              summary: Multiple players
+              value: '7354:6880'
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLInjuryResponse'
+                  - $ref: '#/components/schemas/MLBInjuryResponse'
+                  - $ref: '#/components/schemas/NBAInjuryResponse'
+                  - $ref: '#/components/schemas/NHLInjuryResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLInjuryResponse'
+                    MLB: '#/components/schemas/MLBInjuryResponse'
+                    NBA: '#/components/schemas/NBAInjuryResponse'
+                    NHL: '#/components/schemas/NHLInjuryResponse'
+      security:
+        - api_key: []
+  /{sport}/compare-players:
+    get:
+      summary: Compare Players
+      description: Compare 2-4 players based on rankings
+      parameters:
+        - $ref: '#/components/parameters/Sport'
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2025
+        - name: week
+          description: NFL week to request injuries for. (NFL ONLY)
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: players
+          description: Colon delimited list of FP player IDs to compare
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/digitColon'
+          examples:
+            singlePlayer:
+              summary: A single player
+              value: '7354'
+            multiplePlayers:
+              summary: Multiple players
+              value: '7354:6880'
+        - $ref: '#/components/parameters/Position'
+        - name: experts
+          description: Colon delimited list of expert IDs to compare
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/digitColon'
+          examples:
+            singlePlayer:
+              summary: A single expert
+              value: '232'
+            multiplePlayers:
+              summary: Multiple multiple experts
+              value: '232:6633'
+        - name: ranking_type
+          description: The name of the ranking type you wish to compare rankings for
+          required: false
+          in: query
+          schema:
+            enum:
+              - draft
+              - weekly
+              - ros
+            type: string
+            example: draft
+        - name: details
+          description: Include details about experts, player or both in the response
+          required: false
+          in: query
+          schema:
+            enum:
+              - players
+              - experts
+              - all
+            type: string
+            example: all
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLComparePlayersResponse'
+                  - $ref: '#/components/schemas/MLBComparePlayersResponse'
+                  - $ref: '#/components/schemas/NBAComparePlayersResponse'
+                  - $ref: '#/components/schemas/NHLComparePlayersResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLComparePlayersResponse'
+                    MLB: '#/components/schemas/MLBComparePlayersResponse'
+                    NBA: '#/components/schemas/NBAComparePlayersResponse'
+                    NHL: '#/components/schemas/NHLComparePlayersResponse'
+      security:
+        - api_key: []
+  /{sport}/{season}/rankings:
+    get:
+      summary: Rankings
+      description: Returns player rankings for multiple ranking types and positions.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Sport'
+        - name: week
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: player
+          description: A FantasyPros player ID to filter results on
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: null
+            example: 6880
+        - $ref: '#/components/parameters/Filters'
+        - name: min
+          description: >-
+            Controls the level of player information returned in the response. A
+            value of `true` will return less player information for a smaller
+            response.
+          in: query
+          required: false
+          schema:
+            default: 'false'
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+            example: 'true'
+        - name: range
+          description: Display the min and max rank for a player
+          in: query
+          required: false
+          schema:
+            default: 'false'
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+            example: true
+        - name: rankstats
+          description: Display the average and standard deviation of a ranking
+          in: query
+          required: false
+          schema:
+            default: 'false'
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+            example: true
+        - name: type
+          description: Include Drafters ranking type (NFL ONLY)
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - DRAFTERS
+            example: DRAFTERS
+        - $ref: '#/components/parameters/MLBEligibility'
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLPlayerRankingResponse'
+                  - $ref: '#/components/schemas/MLBPlayerRankingResponse'
+                  - $ref: '#/components/schemas/NBAPlayerRankingResponse'
+                  - $ref: '#/components/schemas/NHLPlayerRankingResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLPlayerRankingResponse'
+                    MLB: '#/components/schemas/MLBPlayerRankingResponse'
+                    NBA: '#/components/schemas/NBAPlayerRankingResponse'
+                    NHL: '#/components/schemas/NHLPlayerRankingResponse'
+      security:
+        - api_key: []
+  /{sport}/{season}/consensus-rankings:
+    get:
+      summary: Consensus Rankings
+      description: Returns detailed consensus player rankings by ranking type and position.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Sport'
+        - $ref: '#/components/parameters/Position'
+        - $ref: '#/components/parameters/RankingType'
+        - $ref: '#/components/parameters/Scoring'
+        - name: week
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            example: 0
+        - name: include_idp
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+            example: 'true'
+        - $ref: '#/components/parameters/Filters'
+        - name: experts
+          description: Include details about the experts included in the ranking set
+          in: query
+          schema:
+            type: string
+            enum:
+              - show
+              - available
+            example: show
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLRankingsResponse'
+                  - $ref: '#/components/schemas/MLBRankingsResponse'
+                  - $ref: '#/components/schemas/NBARankingsResponse'
+                  - $ref: '#/components/schemas/NHLRankingsResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLRankingsResponse'
+                    MLB: '#/components/schemas/MLBRankingsResponse'
+                    NBA: '#/components/schemas/NBARankingsResponse'
+                    NHL: '#/components/schemas/NHLRankingsResponse'
+        '400':
+          description: 400 response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    description: A message describing the error
+                    type: string
+                    example: Invalid Position
+                  parameter:
+                    description: Which parameter there is an error for
+                    type: string
+                    example: position
+                  valid_format:
+                    description: A valid value for the parameter
+                    type: string
+                    example: QB, RB, WR, TE, K, DST
+      security:
+        - api_key: []
+  /{sport}/{season}/rankings/experts:
+    get:
+      summary: Experts
+      description: Returns detailed information on experts.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Sport'
+        - $ref: '#/components/parameters/PositionNotRequired'
+        - $ref: '#/components/parameters/RankingType'
+        - $ref: '#/components/parameters/Scoring'
+        - name: include_overall
+          description: Include overall ranking accuracy in response
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+            example: 'true'
+      responses:
+        '200':
+          description: 200 response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NFLExpertsResponse'
+                  - $ref: '#/components/schemas/MLBExpertsResponse'
+                  - $ref: '#/components/schemas/NBAExpertsResponse'
+                  - $ref: '#/components/schemas/NHLExpertsResponse'
+                discriminator:
+                  propertyName: sport
+                  mapping:
+                    NFL: '#/components/schemas/NFLExpertsResponse'
+                    MLB: '#/components/schemas/MLBExpertsResponse'
+                    NBA: '#/components/schemas/NBAExpertsResponse'
+                    NHL: '#/components/schemas/NHLExpertsResponse'
+      security:
+        - api_key: []
+  /nfl/{season}/projections:
+    get:
+      summary: NFL Projections
+      description: Returns player projections.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Position'
+        - $ref: '#/components/parameters/Filters'
+        - name: positions
+          description: Colon delimited list of positions to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/wordColon'
+        - name: players
+          description: Colon delimited list of FP player IDs to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/digitColon'
+          examples:
+            singlePlayer:
+              summary: A single player
+              value: '7354'
+            multiplePlayers:
+              summary: Multiple players
+              value: '7354:6880'
+        - name: week
+          description: >-
+            The week to request projections for use week = 0 for preseason
+            projections.
+          in: query
+          schema:
+            type: integer
+            example: 4
+      responses:
+        '200':
+          description: 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - season
+                  - week
+                  - count
+                  - positions
+                  - scoring
+                  - players
+                properties:
+                  season:
+                    type: string
+                    example: 2025
+                  week:
+                    type: string
+                    example: 0
+                  count:
+                    type: string
+                    example: 194
+                  positions:
+                    type: string
+                    example: RB
+                  scoring:
+                    type: string
+                    example: STD
+                  players:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - fpid
+                        - mflid
+                        - name
+                        - position_id
+                        - team_id
+                        - filename
+                        - stats
+                      properties:
+                        fpid:
+                          type: string
+                          example: 17240
+                        mflid:
+                          type: string
+                          example: 13604
+                        name:
+                          type: string
+                          example: Saquon Barkley
+                        position_id:
+                          type: string
+                          example: RB
+                        team_id:
+                          type: string
+                          example: PHI
+                        filename:
+                          type: string
+                          example: saquon-barkley.php
+                        stats:
+                          type: array
+                          items:
+                            oneOf:
+                              - $ref: '#/components/schemas/NFLQBPlayerProjections'
+                              - $ref: >-
+                                  #/components/schemas/NFLRBWRTEPlayerProjections
+                              - $ref: '#/components/schemas/NFLDSTPlayerProjections'
+                              - $ref: '#/components/schemas/NFLIDPPlayerProjections'
+      security:
+        - api_key: []
+  /mlb/{season}/projections:
+    get:
+      summary: MLB Projections
+      description: Returns MLB player projections.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Filters'
+        - $ref: '#/components/parameters/MLBEligibility'
+        - name: fpIds
+          description: Comma delimited list of FP player IDs to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/digitComma'
+          examples:
+            singlePlayer:
+              summary: A single player
+              value: '7354'
+            multiplePlayers:
+              summary: Multiple players
+              value: 7354,6880
+        - name: type
+          description: Type of projections, rest of season, daily or weekly
+          in: query
+          schema:
+            type: string
+            enum:
+              - ros
+              - daily
+              - weekly
+              - preseason
+            example: ros
+            default: preseason
+        - name: position
+          in: query
+          schema:
+            $ref: '#/components/schemas/MLBPositions'
+        - name: date
+          description: Date to return for daily projections
+          in: query
+          schema:
+            type: string
+            example: '2025-05-13'
+        - name: week
+          description: Week number to return for weekly projections
+          in: query
+          schema:
+            type: integer
+            example: 4
+        - name: league_key
+          description: An MPB/DW league key
+          in: query
+          schema:
+            $ref: '#/components/schemas/mpbLeagueKey'
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - season
+                  - week
+                  - date
+                  - type
+                  - position
+                  - experts
+                  - position_name
+                  - count
+                  - player
+                properties:
+                  season:
+                    type: string
+                    example: 2024
+                  week:
+                    type: string
+                    example: 0
+                  date:
+                    type: string
+                    example: '2025-05-19'
+                  type:
+                    type: string
+                    enum:
+                      - ros
+                      - daily
+                      - weekly
+                      - preseason
+                    example: preseason
+                  position:
+                    $ref: '#/components/schemas/MLBPositions'
+                  experts:
+                    description: >-
+                      An array containing the expert_ids included in the
+                      projection data
+                    type: string
+                    example:
+                      - 71
+                      - 538
+                      - 1370
+                      - 1369
+                      - 224
+                      - 230
+                      - 231
+                      - 3916
+                      - 650
+                      - 7491
+                  position_name:
+                    description: The full name of the positon returned in the response
+                    example: First Basemen
+                  count:
+                    type: integer
+                    example: 291
+                  player:
+                    description: An array of player projection objects
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: '#/components/schemas/MLBHPlayerProjections'
+                        - $ref: '#/components/schemas/MLBPPlayerProjections'
+      security:
+        - api_key: []
+  /nba/{season}/projections:
+    get:
+      summary: NBA Projections
+      description: Returns NBA player projections.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - $ref: '#/components/parameters/Filters'
+        - name: fpIds
+          description: Comma delimited list of FP player IDs to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/digitComma'
+          examples:
+            singlePlayer:
+              summary: A single player
+              value: '7354'
+            multiplePlayers:
+              summary: Multiple players
+              value: 7354,6880
+        - name: team_id
+          description: Comma delimited list of team IDs to filter response by
+          in: query
+          schema:
+            $ref: '#/components/schemas/digitComma'
+          examples:
+            singlePlayer:
+              summary: A single team
+              value: MIL
+            multiplePlayers:
+              summary: Multiple teams
+              value: MIL,BOS
+        - name: stat_values
+          description: Show more precise values for projected values
+          in: query
+          schema:
+            type: string
+            enum:
+              - precise
+        - name: stype
+          description: Stats type, totals or averages
+          in: query
+          schema:
+            type: string
+            enum:
+              - total
+              - avg
+            example:
+              - total
+            default: total
+        - name: type
+          description: Type of projections, rest of season, daily or weekly
+          in: query
+          schema:
+            type: string
+            enum:
+              - ros
+              - daily
+              - weekly
+              - preseason
+            example: ros
+            default: preseason
+        - name: position
+          in: query
+          schema:
+            $ref: '#/components/schemas/NBAPositions'
+        - name: date
+          description: Date to return for daily projections
+          in: query
+          schema:
+            type: string
+            example: '2025-05-13'
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - season
+                  - week
+                  - date
+                  - type
+                  - position
+                  - count
+                  - player
+                properties:
+                  season:
+                    type: string
+                    example: 2024
+                  week:
+                    type: string
+                    example: 0
+                  date:
+                    type: string
+                    example: '2025-05-19'
+                  type:
+                    type: string
+                    enum:
+                      - ros
+                      - daily
+                      - weekly
+                      - preseason
+                    example: preseason
+                  position:
+                    $ref: '#/components/schemas/NBAPositions'
+                  count:
+                    type: integer
+                    example: 291
+                  player:
+                    description: An array of player projection objects
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - fpid
+                        - player_id
+                        - yahooid
+                        - nbacom_player_id
+                        - name
+                        - position_id
+                        - team_id
+                        - player_page_url
+                        - points
+                        - rebounds
+                        - assists
+                        - blocks
+                        - steals
+                        - field_goals_pct
+                        - free_throws_pct
+                        - three_points_made
+                        - games_played
+                        - games_started
+                        - minutes
+                        - field_goals_made
+                        - field_goals_att
+                        - field_goals_missed
+                        - three_points_att
+                        - blocked_att
+                        - three_points_missed
+                        - free_throws_made
+                        - free_throws_att
+                        - free_throws_missed
+                        - offensive_rebounds
+                        - defensive_rebounds
+                        - turnovers
+                        - personal_fouls
+                        - tech_fouls
+                        - flagrant_fouls
+                        - two_points_pct
+                        - three_points_pct
+                        - assists_turnover_ratio
+                        - two_points_made
+                        - two_points_att
+                        - two_points_missed
+                        - double_double
+                        - triple_double
+                      properties:
+                        fpid:
+                          type: integer
+                          example: 2918
+                        player_id:
+                          type: integer
+                          example: 2918
+                        yahooid:
+                          type:
+                            - number
+                            - null
+                          example: 5352
+                        nbacom_player_id:
+                          type:
+                            - string
+                            - null
+                          example: '203999'
+                        name:
+                          type: string
+                          example: Nikola Jokic
+                        position_id:
+                          $ref: '#/components/schemas/NBAPositions'
+                        team_id:
+                          type: string
+                          example: DEN
+                        player_page_url:
+                          type: string
+                          format: url
+                          example: >-
+                            https://www.fantasypros.com/nba/players/nikola-jokic.php
+                        points:
+                          type:
+                            - number
+                            - null
+                          example: 2066
+                        rebounds:
+                          type:
+                            - number
+                            - null
+                          example: 941
+                        assists:
+                          type:
+                            - number
+                            - null
+                          example: 670
+                        blocks:
+                          type:
+                            - number
+                            - null
+                          example: 67
+                        steals:
+                          type:
+                            - number
+                            - null
+                          example: 110
+                        field_goals_pct:
+                          type:
+                            - number
+                            - null
+                          example: 0.573
+                        free_throws_pct:
+                          type:
+                            - number
+                            - null
+                          example: 0.809
+                        three_points_made:
+                          type:
+                            - number
+                            - null
+                          example: 93
+                        games_played:
+                          type:
+                            - number
+                            - null
+                          example: 77
+                        games_started:
+                          type:
+                            - number
+                            - null
+                          example: 70
+                        minutes:
+                          type:
+                            - number
+                            - null
+                          example: 2698
+                        field_goals_made:
+                          type:
+                            - number
+                            - null
+                          example: 803
+                        field_goals_att:
+                          type:
+                            - number
+                            - null
+                          example: 1402
+                        field_goals_missed:
+                          type:
+                            - number
+                            - null
+                          example: 598
+                        three_points_att:
+                          type:
+                            - number
+                            - null
+                          example: 262
+                        blocked_att:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        three_points_missed:
+                          type:
+                            - number
+                            - null
+                          example: 169
+                        free_throws_made:
+                          type:
+                            - number
+                            - null
+                          example: 366
+                        free_throws_att:
+                          type:
+                            - number
+                            - null
+                          example: 453
+                        free_throws_missed:
+                          type:
+                            - number
+                            - null
+                          example: 87
+                        offensive_rebounds:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        defensive_rebounds:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        turnovers:
+                          type:
+                            - number
+                            - null
+                          example: 257
+                        personal_fouls:
+                          type:
+                            - number
+                            - null
+                          example: 3
+                        tech_fouls:
+                          type:
+                            - number
+                            - null
+                          example: 2
+                        flagrant_fouls:
+                          type:
+                            - number
+                            - null
+                          example: 1
+                        two_points_pct:
+                          type:
+                            - number
+                            - null
+                          example: 0.557
+                        three_points_pct:
+                          type:
+                            - number
+                            - null
+                          example: 0.357
+                        assists_turnover_ratio:
+                          type:
+                            - number
+                            - null
+                          example: 0.232
+                        two_points_made:
+                          type:
+                            - number
+                            - null
+                          example: 10
+                        two_points_att:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        two_points_missed:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        double_double:
+                          type:
+                            - number
+                            - null
+                          example: null
+                        triple_double:
+                          type:
+                            - number
+                            - null
+                          example: null
+      security:
+        - api_key: []
+  /nfl/{season}/player-points:
+    get:
+      summary: NFL Player Points
+      description: Returns fantasy points for NFL players.
+      parameters:
+        - $ref: '#/components/parameters/Season'
+        - name: min
+          description: >-
+            Controls the level of player information returned in the response. A
+            value of `true` will return less player information for a smaller
+            response.
+          in: query
+          required: false
+          schema:
+            default: 'false'
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+            example: true
+        - name: start
+          description: The starting week to return data from.
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            example: 5
+        - name: end
+          description: >-
+            The ending week to return data through. Defaults to the final week
+            of the regular season for the requested season.
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 18
+        - name: position
+          description: Only return players with this position.
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ALL
+              - QB
+              - RB
+              - WR
+              - TE
+              - OT
+              - OL
+              - OG
+              - C
+              - DE
+              - DT
+              - LB
+              - CB
+              - S
+              - DB
+              - K
+              - P
+              - DST
+            default: ALL
+            example: QB
+        - name: scoring
+          description: The scoring type to use to calculate points.
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - STD
+              - PPR
+              - HALF
+            default: STD
+            example: PPR
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - season
+                  - scoring
+                  - players
+                properties:
+                  season:
+                    description: The season that was evaluated.
+                    type: string
+                    example: '2024'
+                  scoring:
+                    description: The scoring that was evaluated.
+                    type: string
+                    example: STD
+                  players:
+                    description: An array containing player objects.
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - player_id
+                        - games
+                        - points
+                        - average
+                        - weeks
+                      properties:
+                        player_id:
+                          $ref: '#/components/schemas/PlayerId'
+                        player_name:
+                          $ref: '#/components/schemas/PlayerName'
+                        position_id:
+                          $ref: '#/components/schemas/PositionId'
+                        team_id:
+                          $ref: '#/components/schemas/TeamId'
+                        filename:
+                          $ref: '#/components/schemas/Filename'
+                        games:
+                          description: The number of games the player played in.
+                          type: integer
+                          example: 10
+                        points:
+                          description: The total points the player accrued.
+                          type: number
+                          example: 142.5
+                        average:
+                          description: The average number of points the player accrued.
+                          type: number
+                          example: 14.25
+                        weeks:
+                          description: An object keyed by week number.
+                          type: object
+                          patternProperties:
+                            ^([1-9]|1[0-8])$:
+                              type: number
+                              format: float
+                          example:
+                            '1': 6.9
+                            '2': 18.3
+                            '3': 19.4
+                            '4': 10.5
+                            '5': 22.1
+                            '6': 12.8
+                            '7': 6
+                            '8': 7.7
+                            '9': 24.4
+                            '10': 14.2
+      security:
+        - api_key: []
+  /mlb/lineups:
+    get:
+      summary: MLB Lineups
+      description: Returns MLB lineups.
+      parameters:
+        - name: start
+          description: Date to return lineups for
+          in: query
+          schema:
+            type: string
+            example: '2025-05-13'
+        - name: period
+          description: A season type to return games for
+          in: query
+          schema:
+            type: string
+            enum:
+              - PRE
+              - REG
+              - PST
+            example: REG
+            default: REG
+        - name: projected
+          description: Return projected lineups for the provided date
+          in: query
+          schema:
+            type: string
+            example: 'true'
+            default: 'false'
+      responses:
+        '200':
+          description: A successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - league_key
+                  - season
+                  - start
+                  - end
+                  - count
+                  - games
+                properties:
+                  league_key:
+                    type: string
+                    example: ''
+                  season:
+                    description: The season queried for games
+                    type: string
+                    example: '2025'
+                  start:
+                    description: The date of games
+                    type: string
+                    example: '2025-06-23'
+                  end:
+                    description: The date of games
+                    type: string
+                    example: '2025-06-23'
+                  count:
+                    type: integer
+                    example: 9
+                  games:
+                    description: An array of games
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - game_id
+                        - event_id
+                        - status
+                        - weather
+                        - chance_rain
+                        - weather_icon
+                        - temp
+                        - wind
+                        - wind_direction
+                        - deg_offset
+                        - teams
+                        - away_probable_id
+                        - home_probable_id
+                        - hitters
+                        - pitchers
+                      properties:
+                        game_id:
+                          type: string
+                          example: '97000'
+                        event_id:
+                          type: string
+                          example: '97000'
+                        status:
+                          type: string
+                          example: scheduled
+                        weather:
+                          type: string
+                          example: Mostly Clear, 97° F, 8 mph wind
+                        chance_rain:
+                          type: number
+                          example: 0
+                        weather_icon:
+                          type: string
+                          format: url
+                          example: >-
+                            https://images.fantasypros.com/images/icons/weather/cloud.png
+                        temp:
+                          description: Gametime temperature in fahrenheit
+                          type: integer
+                          example: 97
+                        wind:
+                          description: Gametime windspeed in miles per hour
+                          type: integer
+                          example: 8
+                        wind_direction:
+                          type: Wind direction in degrees clockwise from north
+                          example: 308
+                        deg_offset:
+                          description: >-
+                            Degrees offset of the stadium orientation from true
+                            north.
+                          type: string
+                          example: '30'
+                        teams:
+                          type: object
+                          description: Map of team IF to that team’s season record.
+                          additionalProperties:
+                            type: object
+                            properties:
+                              record:
+                                type: string
+                                description: >-
+                                  Season record, e.g. “12-5”; may be empty if
+                                  not yet available.
+                                example: ''
+                        away_probable_id:
+                          type: integer
+                          format: integer
+                          description: >-
+                            player_id for the away team’s probable starting
+                            pitcher.
+                          example: 4655
+                        home_probable_id:
+                          type: integer
+                          format: integer
+                          description: >-
+                            player_id for the home team’s probable starting
+                            pitcher.
+                          example: 6995
+                        hitters:
+                          type: object
+                          description: Batting order by team, keyed by lineup position.
+                          additionalProperties:
+                            type: object
+                            description: Map of lineup slot to hitter info.
+                            additionalProperties:
+                              type: object
+                              required:
+                                - player_id
+                                - rank_vbr
+                                - position
+                              properties:
+                                player_id:
+                                  type: string
+                                  example: '46268'
+                                rank_vbr:
+                                  type: integer
+                                  description: VBR rank for the player.
+                                  example: 149
+                                position:
+                                  type: string
+                                  description: Defensive position abbreviation.
+                                  example: 2B
+                        pitchers:
+                          type: object
+                          description: Probable starting pitcher info by team.
+                          additionalProperties:
+                            type: object
+                            required:
+                              - player_id
+                              - player_name
+                              - rank_vbr
+                              - record
+                            properties:
+                              player_id:
+                                type: string
+                                example: '6995'
+                              player_name:
+                                type: string
+                                example: Trevor Rogers
+                              rank_vbr:
+                                type: integer
+                                example: 642
+                              record:
+                                type: string
+                                description: Pitcher’s win-loss record, e.g. “4-6”.
+                                example: 0-0
+                    example:
+                      game_id: '97000'
+                      event_id: '97000'
+                      status: scheduled
+                      weather: Mostly Clear, 97° F, 8 mph wind
+                      chance_rain: 0
+                      weather_icon: >-
+                        https://images.fantasypros.com/images/icons/weather/cloud.png
+                      temp: 97
+                      wind: 8
+                      wind_direction: 308
+                      deg_offset: '30'
+                      teams:
+                        BAL:
+                          record: ''
+                        TEX:
+                          record: ''
+                      away_probable_id: 4655
+                      home_probable_id: 6995
+                      hitters:
+                        BAL:
+                          '1':
+                            player_id: '46268'
+                            rank_vbr: 149
+                            position: 2B
+                          '2':
+                            player_id: '6740'
+                            rank_vbr: 509
+                            position: RF
+                          '3':
+                            player_id: '23372'
+                            rank_vbr: 14
+                            position: SS
+                          '4':
+                            player_id: '4670'
+                            rank_vbr: 820
+                            position: DH
+                          '5':
+                            player_id: '8377'
+                            rank_vbr: 463
+                            position: 3B
+                          '6':
+                            player_id: '44669'
+                            rank_vbr: 121
+                            position: LF
+                          '7':
+                            player_id: '44345'
+                            rank_vbr: 1223
+                            position: 1B
+                          '8':
+                            player_id: '7400'
+                            rank_vbr: 94
+                            position: CF
+                          '9':
+                            player_id: '43989'
+                            rank_vbr: 0
+                            position: C
+                        TEX:
+                          '1':
+                            player_id: '8227'
+                            rank_vbr: 568
+                            position: LF
+                          '2':
+                            player_id: '47238'
+                            rank_vbr: 26
+                            position: CF
+                          '3':
+                            player_id: '4544'
+                            rank_vbr: 119
+                            position: 2B
+                          '4':
+                            player_id: '6901'
+                            rank_vbr: 127
+                            position: RF
+                          '5':
+                            player_id: '6457'
+                            rank_vbr: 633
+                            position: DH
+                          '6':
+                            player_id: '6168'
+                            rank_vbr: 722
+                            position: C
+                          '7':
+                            player_id: '23130'
+                            rank_vbr: 133
+                            position: 3B
+                          '8':
+                            player_id: '43722'
+                            rank_vbr: 1213
+                            position: SS
+                          '9':
+                            player_id: '43832'
+                            rank_vbr: 0
+                            position: 1B
+                      pitchers:
+                        BAL:
+                          player_id: '6995'
+                          player_name: Trevor Rogers
+                          rank_vbr: 642
+                          record: 0-0
+                        TEX:
+                          player_id: '4655'
+                          player_name: Patrick Corbin
+                          rank_vbr: 684
+                          record: 4-6
+      security:
+        - api_key: []
+components:
+  schemas:
+    Empty:
+      title: Empty Schema
+      type: object
+    Sport:
+      title: Sport keys
+      type: string
+      description: A key indicating a sport
+      example: NFL
+      enum:
+        - NFL
+        - MLB
+        - NBA
+        - NHL
+        - PGA
+        - NCAAF
+    Season:
+      title: Season
+      description: A numerical season in the format YYYY
+      type: integer
+      minimum: 2012
+      example: 2024
+    PlayerId:
+      description: A FantasyPros player ID
+      type: integer
+      example: 6880
+    TeamId:
+      description: A pro team ID
+      type: string
+      example: IND
+    PlayerName:
+      description: A player name
+      type: string
+      example: Daniel Jones
+    PositionId:
+      description: A players position
+      type: string
+      example: QB
+    Filename:
+      description: A players filename
+      type: string
+      example: daniel-jones.php
+    FilenameFull:
+      description: A players full filename
+      type: string
+      format: url
+      example: https://www.fantasypros.com/nfl/players/daniel-jones.php
+    ECRRank:
+      description: A players rank
+      type: integer
+      example: 314
+    Players:
+      type: object
+      required:
+        - sport
+        - count
+        - season
+        - week
+        - players
+      properties:
+        sport:
+          type: string
+          example: NFL
+        count:
+          type: integer
+          example: 8660
+        season:
+          type: string
+          example: 2025
+        week:
+          type: string
+          example: 0
+        players:
+          type: array
+    NFLPlayerResponse:
+      allOf:
+        - $ref: '#/components/schemas/Players'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NFL
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Player'
+                  - $ref: '#/components/schemas/NFLPlayer'
+    MLBPlayerResponse:
+      allOf:
+        - $ref: '#/components/schemas/Players'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - MLB
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Player'
+                  - $ref: '#/components/schemas/MLBPlayer'
+                example:
+                  player_id: 7354
+                  player_name: Shohei Ohtani
+                  short_name: S. Ohtani
+                  first_name: Shohei
+                  last_name: Ohtani
+                  reverse_name: Ohtani, Shohei
+                  position_id: SP,DH
+                  positions:
+                    - SP
+                    - DH
+                  team_id: LAD
+                  filename: https://www.fantasypros.com/mlb/players/shohei-ohtani.php
+                  sportsdata_player_id: 80de60c9-74e3-4a50-b128-b3dc7456a254
+                  large_image_url: >-
+                    https://images.fantasypros.com/images/players/mlb/7354/headshot/250x250.png
+                  square_image_url: >-
+                    https://images.fantasypros.com/images/players/mlb/7354/headshot/70x70.png
+                  image_url: >-
+                    https://images.fantasypros.com/images/players/mlb/7354/headshot/70x70.png
+                  rank_ecr: 2
+                  rank_adp: 1
+                  birthdate: '1994-07-05'
+                  age: 30
+                  primary_position: DH
+                  yahoo_positions: ''
+                  yahoo_id: ''
+                  rotowire_id: ''
+                  espn_positions: DH,SP
+                  cbs_positions: SP,DH
+                  rts_positions: P
+                  throw_hand: R
+                  bat_hand: L
+                  status: A
+    NBAPlayerResponse:
+      allOf:
+        - $ref: '#/components/schemas/Players'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Player'
+                  - $ref: '#/components/schemas/NBAPlayer'
+                example:
+                  player_id: 2239
+                  player_name: LeBron James
+                  short_name: L. James
+                  first_name: LeBron
+                  last_name: James
+                  reverse_name: James, LeBron
+                  position_id: SF,PF
+                  positions:
+                    - SF
+                    - PF
+                  team_id: LAL
+                  filename: https://www.fantasypros.com/nba/players/lebron-james.php
+                  sportsdata_player_id: 0afbe608-940a-4d5d-a1f7-468718c67d91
+                  large_image_url: >-
+                    https://images.fantasypros.com/images/players/nba/2239/headshot/250x250.png
+                  square_image_url: >-
+                    https://images.fantasypros.com/images/players/nba/2239/headshot/70x70.png
+                  image_url: >-
+                    https://images.fantasypros.com/images/players/nba/2239/headshot/70x70.png
+                  rank_ecr: 22
+                  rank_adp: 17
+                  birthdate: '1984-12-30'
+                  age: 40
+    NHLPlayerResponse:
+      allOf:
+        - $ref: '#/components/schemas/Players'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NHL
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Player'
+                  - $ref: '#/components/schemas/NHLPlayer'
+                example:
+                  player_id: 16003
+                  player_name: Alex Ovechkin
+                  short_name: A. Ovechkin
+                  first_name: Alex
+                  last_name: Ovechkin
+                  reverse_name: Ovechkin, Alex
+                  position_id: LW,F
+                  positions:
+                    - LW
+                    - F
+                  team_id: WSH
+                  filename: https://www.fantasypros.com/nhl/players/alex-ovechkin.php
+                  sportsdata_player_id: 434d92a7-0f24-11e2-8525-18a905767e44
+                  large_image_url: >-
+                    https://images.fantasypros.com/images/players/nhl/16003/headshot/250x250.png
+                  square_image_url: >-
+                    https://images.fantasypros.com/images/players/nhl/16003/headshot/70x70.png
+                  image_url: >-
+                    https://images.fantasypros.com/images/players/nhl/16003/headshot/70x70.png
+                  rank_ecr: 43
+                  rank_adp: 52
+                  birthdate: '1985-09-17'
+                  age: 39
+    Player:
+      type: object
+      required:
+        - player_id
+        - player_name
+        - short_name
+        - first_name
+        - last_name
+        - reverse_name
+        - position_id
+        - positions
+        - team_id
+        - filename
+        - sportsdata_player_id
+        - large_image_url
+        - square_image_url
+        - image_url
+        - rank_ecr
+        - rank_adp
+        - birthdate
+      properties:
+        player_id:
+          $ref: '#/components/schemas/PlayerId'
+        player_name:
+          $ref: '#/components/schemas/PlayerName'
+        short_name:
+          description: A shortened player's name
+          type: string
+          example: D. Jones
+        first_name:
+          description: A player's first name
+          type: string
+          example: Daniel
+        last_name:
+          description: A player's last name
+          type: string
+          example: Jones
+        reverse_name:
+          description: A player's name with last name first
+          type: string
+          example: Jones, Daniel
+        position_id:
+          $ref: '#/components/schemas/PositionId'
+        positions:
+          description: An array of the positions a player plays
+          type: array
+          items:
+            $ref: '#/components/schemas/PositionId'
+          example:
+            - QB
+        team_id:
+          $ref: '#/components/schemas/TeamId'
+        filename:
+          $ref: '#/components/schemas/FilenameFull'
+        sportsdata_player_id:
+          type: string
+          description: A Sportradar player ID
+          example: 1146776b-e591-4f81-8a56-459c1845bead
+        large_image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nfl/18232/headshot/250x250.png
+        square_image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nfl/18232/headshot/70x70.png
+        image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nfl/18232/headshot/70x70.png
+        rank_ecr:
+          $ref: '#/components/schemas/ECRRank'
+        rank_adp:
+          $ref: '#/components/schemas/ECRRank'
+        rank_ecr_pos:
+          $ref: '#/components/schemas/ECRRank'
+        birthdate:
+          type: string
+          example: '1997-05-27'
+        birthdatetime:
+          type: integer
+          example: 864691200
+        age:
+          type: integer
+          example: 27
+    NFLPlayer:
+      allOf:
+        - $ref: '#/components/schemas/Player'
+        - type: object
+          required:
+            - rank_ecr_ppr
+            - rank_adp_ppr
+            - rank_ecr_half
+          properties:
+            rank_ecr_ppr:
+              $ref: '#/components/schemas/ECRRank'
+            rank_ecr_half:
+              $ref: '#/components/schemas/ECRRank'
+            rank_adp_ppr:
+              $ref: '#/components/schemas/ECRRank'
+            rookie:
+              type: string
+              example: 'Y'
+    MLBPlayer:
+      allOf:
+        - $ref: '#/components/schemas/Player'
+        - type: object
+          required:
+            - primary_position
+            - yahoo_positions
+            - yahoo_id
+            - rotowire_id
+            - espn_positions
+            - cbs_positions
+            - rts_positions
+            - throw_hand
+            - bat_hand
+            - status
+          properties:
+            primary_position:
+              type: string
+              example: P
+            yahoo_positions:
+              type: string
+              example: SP
+            yahoo_id:
+              type: string
+              example: '6314'
+            rotowire_id:
+              type: string
+              example: '6051'
+            espn_positions:
+              type: string
+              example: SP,RP
+            cbs_positions:
+              type: string
+              example: SP
+            rts_positions:
+              type: string
+              example: SP
+            throw_hand:
+              type: string
+              example: R
+            bat_hand:
+              type: string
+              example: R
+            status:
+              type: string
+              example: D15
+            rookie:
+              type: string
+              example: 'Y'
+    NBAPlayer:
+      $ref: '#/components/schemas/Player'
+    NHLPlayer:
+      $ref: '#/components/schemas/Player'
+    SPORTPositions:
+      type: string
+      oneOf:
+        - $ref: '#/components/schemas/NFLPositions'
+        - $ref: '#/components/schemas/MLBPositions'
+        - $ref: '#/components/schemas/NBAPositions'
+        - $ref: '#/components/schemas/NHLPositions'
+        - $ref: '#/components/schemas/NCAAFPositions'
+    NFLPositions:
+      type: string
+      enum:
+        - ALL
+        - FLX
+        - OP
+        - QB
+        - RB
+        - WR
+        - TE
+        - K
+        - DST
+        - IDP
+        - DL
+        - LB
+        - DB
+        - TK
+        - TQB
+        - TRB
+        - TWR
+        - TTE
+        - TOL
+        - HC
+        - P
+        - RK
+        - OT
+        - OG
+        - IOL
+        - C
+        - IDL
+        - DE
+        - DT
+        - CB
+        - S
+      example: QB
+    MLBPositions:
+      type: string
+      enum:
+        - ALL
+        - H
+        - P
+        - 1B
+        - 2B
+        - 3B
+        - SS
+        - C
+        - OF
+        - SP
+        - RP
+        - DH
+        - LF
+        - CF
+        - RF
+      example: OF
+    NBAPositions:
+      type: string
+      enum:
+        - ALL
+        - PG
+        - SG
+        - SF
+        - PF
+        - G
+        - F
+        - C
+        - SGF
+        - PFC
+      example: PG
+    NHLPositions:
+      type: string
+      enum:
+        - ALL
+        - C
+        - LW
+        - RW
+        - D
+        - G
+      example: LW
+    NCAAFPositions:
+      type: string
+      enum:
+        - ALL
+        - QB
+        - RB
+        - WR
+        - TE
+        - K
+        - DST
+      example: QB
+    SPORTRankingTypes:
+      type: string
+      oneOf:
+        - $ref: '#/components/schemas/NFLRankingTypes'
+        - $ref: '#/components/schemas/MLBRankingTypes'
+        - $ref: '#/components/schemas/NBARankingTypes'
+        - $ref: '#/components/schemas/NHLRankingTypes'
+    NFLRankingTypes:
+      type: string
+      enum:
+        - WW
+        - WAIVER
+        - ROS
+        - DRAFT
+        - PRESEASON
+        - SLEEPERS
+        - BEST
+        - PROSPECT
+        - PRO
+        - DEVY
+        - ROOKIES
+        - DYNADP
+        - RKADP
+        - BESTADP
+        - DYNASTY
+        - PRE
+        - DRAFTERS
+        - PRO
+        - PROSPECT
+        - MOCK
+      example: ROS
+    MLBRankingTypes:
+      type: string
+      enum:
+        - DRAFT
+        - PRESEASON
+        - ROS
+        - DK
+        - DYN
+        - STK
+        - PRO
+        - PROSPECT
+        - ADP
+        - WEEKLY
+      default: DRAFT
+      example: DRAFT
+    NBARankingTypes:
+      type: string
+      enum:
+        - ROS
+        - DK
+        - ADP
+        - DRAFT
+        - DYNASTY
+      default: DRAFT
+      example: ROS
+    NHLRankingTypes:
+      type: string
+      enum:
+        - DRAFT
+        - ROS
+        - ADP
+      default: DRAFT
+      example: ROS
+    SPORTScoringTypes:
+      type: string
+      oneOf:
+        - $ref: '#/components/schemas/NFLScoringTypes'
+        - $ref: '#/components/schemas/NBAScoringTypes'
+    NFLScoringTypes:
+      type: string
+      enum:
+        - STD
+        - PPR
+        - HALF
+      default: STD
+      example: STD
+    NBAScoringTypes:
+      type: string
+      enum:
+        - ROTO
+        - PTS
+      default: ROTO
+      example: ROTO
+    ConsensusRankings:
+      type: object
+      required:
+        - sport
+        - year
+        - week
+        - filters
+        - count
+        - total_experts
+        - last_updated
+        - last_updated_ts
+        - players
+      properties:
+        sport:
+          $ref: '#/components/schemas/Sport'
+        year:
+          type: string
+          example: '2023'
+        week:
+          type: string
+          example: '0'
+        filters:
+          type:
+            - string
+            - null
+          example: 6297,6318,375,4317,908,5446
+        count:
+          type: integer
+          example: 40
+        total_experts:
+          type: integer
+          example: 25
+        last_updated:
+          type: string
+          pattern: \d+\/\d+
+          example: 04/15
+        last_updated_ts:
+          type: integer
+          example: 1747173394
+        expert_pub:
+          type: object
+          description: Map of expert-ID (as string) → publication timestamp
+          propertyNames:
+            type: string
+            pattern: ^[0-9]+$
+          additionalProperties:
+            type: string
+            format: date-time
+          example:
+            '7': '2022-04-06 13:10:02'
+            '9': '2022-04-07 15:59:20'
+            '22': '2022-04-01 20:36:52'
+        expert_name:
+          type: object
+          description: Map of expert-ID → expert’s full name
+          propertyNames:
+            type: string
+            pattern: ^[0-9]+$
+          additionalProperties:
+            type: string
+          example:
+            '3': Eric Karabell
+            '5': Staff Composite
+            '6': Brandon Funston
+        expert_twitter:
+          type: object
+          description: Map of expert-ID → Twitter handle
+          propertyNames:
+            type: string
+            pattern: ^[0-9]+$
+          additionalProperties:
+            type: string
+          example:
+            '5': ESPN
+            '6': BrandonFunston
+            '7': andybehrens
+        expert_image_url:
+          type: object
+          description: Map of expert-ID → profile image URL
+          propertyNames:
+            type: string
+            pattern: ^[0-9]+$
+          additionalProperties:
+            type: string
+            format: uri
+          example:
+            '3': >-
+              https://pbs.twimg.com/profile_images/654082377694715904/4BOF1NJ4.jpg
+            '5': >-
+              https://pbs.twimg.com/profile_images/903763131872288768/lR7-Fb1N.jpg
+            '6': >-
+              https://pbs.twimg.com/profile_images/1545103401544925184/BHhf-ZbA.jpg
+        experts_available:
+          type: object
+          description: >-
+            Metadata about which experts are available and when it was last
+            updated
+          required:
+            - total
+            - included
+            - excluded
+            - last_update
+          properties:
+            total:
+              type: integer
+              description: Total number of experts
+              example: 48
+            included:
+              type: array
+              description: List of expert IDs to include
+              items:
+                type: integer
+              example:
+                - 9
+                - 174
+                - 2420
+                - 759
+                - 2475
+                - 394
+                - 406
+                - 203
+                - 766
+                - 3040
+            excluded:
+              type: array
+              description: List of expert IDs to exclude
+              items:
+                type: integer
+              example: []
+            last_update:
+              type: integer
+              description: Epoch-seconds timestamp of when the list was last refreshed
+              example: 1649347160
+        players:
+          type: array
+    RankingPlayerBase:
+      type: object
+      required:
+        - player_id
+        - player_name
+        - player_short_name
+        - player_team_id
+        - player_positions
+        - player_page_url
+        - player_square_image_url
+        - player_image_url
+        - player_yahoo_id
+        - rank_ecr
+        - pos_rank
+      properties:
+        player_id:
+          type: integer
+        player_name:
+          type: string
+        player_short_name:
+          type: string
+        player_team_id:
+          type: string
+        player_positions:
+          type: string
+        player_page_url:
+          type: string
+          format: uri
+        player_square_image_url:
+          type: string
+          format: uri
+        player_image_url:
+          type: string
+          format: uri
+        player_yahoo_id:
+          type: string
+        rank_ecr:
+          type:
+            - integer
+            - string
+        pos_rank:
+          type: string
+    NFLRankingPlayer:
+      allOf:
+        - $ref: '#/components/schemas/RankingPlayerBase'
+        - type: object
+          required:
+            - sportsdata_id
+            - player_position_id
+            - player_eligibility
+            - player_yahoo_positions
+            - player_filename
+            - cbs_player_id
+            - player_bye_week
+            - player_owned_avg
+            - player_owned_espn
+            - player_owned_yahoo
+            - tier
+          properties:
+            sportsdata_id:
+              type: string
+              format: uuid
+            player_position_id:
+              type: string
+            player_eligibility:
+              type: string
+            player_yahoo_positions:
+              type: string
+            player_filename:
+              type: string
+            cbs_player_id:
+              type: string
+            player_bye_week:
+              type: string
+            player_owned_avg:
+              type: number
+            player_owned_espn:
+              type: number
+            player_owned_yahoo:
+              type: number
+            player_ecr_delta:
+              type: number
+              nullable: true
+            tier:
+              type: integer
+      example:
+        player_id: 19217
+        player_name: Jonathan Taylor
+        sportsdata_id: 925195a4-06ba-4e37-ae7d-a3d6a5419139
+        player_team_id: IND
+        player_position_id: RB
+        player_positions: RB
+        player_short_name: J. Taylor
+        player_eligibility: RB
+        player_yahoo_positions: RB
+        player_page_url: https://www.fantasypros.com/nfl/players/jonathan-taylor.php
+        player_filename: jonathan-taylor.php
+        player_square_image_url: >-
+          https://images.fantasypros.com/images/players/nfl/19217/headshot/210x210.png
+        player_image_url: >-
+          https://images.fantasypros.com/images/players/nfl/19217/headshot/210x210.png
+        player_yahoo_id: '32711'
+        cbs_player_id: '2866395'
+        player_bye_week: '14'
+        player_owned_avg: 98.2
+        player_owned_espn: 99.5
+        player_owned_yahoo: 100
+        player_ecr_delta: null
+        rank_ecr: 1
+        pos_rank: RB1
+        tier: 1
+    MLBRankingPlayer:
+      allOf:
+        - $ref: '#/components/schemas/RankingPlayerBase'
+        - type: object
+          required:
+            - filename
+            - position_id
+            - primary_position
+            - yahoo_player_id
+            - cbs_player_id
+            - has_image
+            - player_yahoo_positions
+            - player_espn_positions
+            - player_cbs_positions
+            - rank_min
+            - rank_max
+            - rank_ave
+            - rank_std
+          properties:
+            filename:
+              type: string
+            position_id:
+              type: string
+            primary_position:
+              type: string
+            yahoo_player_id:
+              type: string
+            cbs_player_id:
+              type: string
+            has_image:
+              type: string
+            player_yahoo_positions:
+              type: string
+            player_espn_positions:
+              type: string
+            player_cbs_positions:
+              type: string
+            rank_min:
+              type: string
+            rank_max:
+              type: string
+            rank_ave:
+              type: string
+            rank_std:
+              type: string
+      example:
+        player_id: 5828
+        player_name: Trea Turner
+        player_short_name: T. Turner
+        player_team_id: PHI
+        filename: trea-turner.php
+        position_id: SS
+        primary_position: SS
+        player_positions: SS
+        yahoo_player_id: '10056'
+        player_yahoo_id: '10056'
+        cbs_player_id: '2135249'
+        has_image: '1'
+        player_yahoo_positions: SS
+        player_espn_positions: SS
+        player_cbs_positions: SS
+        player_page_url: https://www.fantasypros.com/mlb/players/trea-turner.php
+        player_square_image_url: >-
+          https://images.fantasypros.com/images/players/mlb/5828/headshot/210x210.png
+        player_image_url: >-
+          https://images.fantasypros.com/images/players/mlb/5828/headshot/210x210.png
+        rank_ecr: 1
+        rank_min: '1'
+        rank_max: '4'
+        rank_ave: '1.24'
+        rank_std: '0.60'
+        pos_rank: SS1
+    NBARankingPlayer:
+      allOf:
+        - $ref: '#/components/schemas/RankingPlayerBase'
+        - type: object
+          required:
+            - player_position_id
+            - filename
+            - player_nbacom_id
+            - player_cbs_id
+            - rank_min
+            - rank_max
+            - rank_ave
+            - rank_std
+          properties:
+            player_position_id:
+              type: string
+            filename:
+              type: string
+            player_nbacom_id:
+              type: string
+            player_cbs_id:
+              type: string
+            rank_min:
+              type: string
+            rank_max:
+              type: string
+            rank_ave:
+              type: string
+            rank_std:
+              type: string
+      example:
+        player_id: 2918
+        player_name: Nikola Jokic
+        player_short_name: N. Jokic
+        player_team_id: DEN
+        player_position_id: C
+        player_positions: C
+        player_page_url: https://www.fantasypros.com/nba/players/nikola-jokic.php
+        filename: nikola-jokic.php
+        player_square_image_url: >-
+          https://images.fantasypros.com/images/players/nba/2918/headshot/210x210.png
+        player_image_url: >-
+          https://images.fantasypros.com/images/players/nba/2918/headshot/210x210.png
+        player_yahoo_id: '5352'
+        player_nbacom_id: '203999'
+        player_cbs_id: ''
+        rank_ecr: '1'
+        rank_min: '1'
+        rank_max: '1'
+        rank_ave: '1.00'
+        rank_std: '0.00'
+        pos_rank: C1
+    NHLRankingPlayer:
+      allOf:
+        - $ref: '#/components/schemas/RankingPlayerBase'
+        - type: object
+          required:
+            - player_position_id
+            - filename
+            - player_cbs_id
+            - rank_min
+            - rank_max
+            - rank_ave
+            - rank_std
+          properties:
+            player_position_id:
+              type: string
+            filename:
+              type: string
+            player_cbs_id:
+              type: string
+            rank_min:
+              type: string
+            rank_max:
+              type: string
+            rank_ave:
+              type: string
+            rank_std:
+              type: string
+      example:
+        player_id: 16664
+        player_name: Connor McDavid
+        player_short_name: C. McDavid
+        player_team_id: EDM
+        player_position_id: C
+        player_positions: C,F
+        player_page_url: https://www.fantasypros.com/nhl/players/connor-mcdavid.php
+        filename: connor-mcdavid.php
+        player_square_image_url: >-
+          https://images.fantasypros.com/images/players/nhl/16664/headshot/210x210.png
+        player_image_url: >-
+          https://images.fantasypros.com/images/players/nhl/16664/headshot/210x210.png
+        player_yahoo_id: '6743'
+        player_nbacom_id: ''
+        player_cbs_id: ''
+        rank_ecr: '1'
+        rank_min: '1'
+        rank_max: '2'
+        rank_ave: '1.14'
+        rank_std: '0.35'
+        pos_rank: C1
+    NFLRankingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsensusRankings'
+        - type: object
+          required:
+            - scoring
+            - position_id
+            - ranking_type_name
+          properties:
+            sport:
+              enum:
+                - NFL
+            scoring:
+              $ref: '#/components/schemas/NFLScoringTypes'
+            position_id:
+              $ref: '#/components/schemas/NFLPositions'
+            ranking_type_name:
+              $ref: '#/components/schemas/NFLRankingTypes'
+            players:
+              items:
+                $ref: '#/components/schemas/NFLRankingPlayer'
+    MLBRankingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsensusRankings'
+        - type: object
+          required:
+            - mlb_league
+            - scoring
+            - position_id
+            - ranking_type_name
+          properties:
+            sport:
+              enum:
+                - MLB
+            mlb_league:
+              type: string
+              enum:
+                - ALL
+                - NL
+                - AL
+            scoring:
+              type: string
+              enum:
+                - ROTO
+              default: ROTO
+            position_id:
+              $ref: '#/components/schemas/MLBPositions'
+            ranking_type_name:
+              $ref: '#/components/schemas/MLBRankingTypes'
+            players:
+              items:
+                $ref: '#/components/schemas/MLBRankingPlayer'
+    NBARankingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsensusRankings'
+          required:
+            - scoring
+            - position_id
+            - ranking_type_name
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+            scoring:
+              $ref: '#/components/schemas/NBAScoringTypes'
+            position_id:
+              $ref: '#/components/schemas/NBAPositions'
+            ranking_type_name:
+              $ref: '#/components/schemas/NBARankingTypes'
+            players:
+              items:
+                $ref: '#/components/schemas/NBARankingPlayer'
+    NHLRankingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsensusRankings'
+        - type: object
+          required:
+            - scoring
+            - position_id
+            - ranking_type_name
+          properties:
+            sport:
+              enum:
+                - NHL
+            scoring:
+              type: string
+              enum:
+                - ROTO
+              example: ROTO
+            position_id:
+              $ref: '#/components/schemas/NHLPositions'
+            ranking_type_name:
+              $ref: '#/components/schemas/NHLRankingTypes'
+            players:
+              items:
+                $ref: '#/components/schemas/NHLRankingPlayer'
+    ComparePlayers:
+      type: object
+      required:
+        - sport
+        - year
+        - week
+        - position_id
+        - ranking_type
+        - rankings
+      properties:
+        sport:
+          $ref: '#/components/schemas/Sport'
+        year:
+          type: string
+          example: 2025
+        week:
+          type: string
+          example: 0
+        position_id:
+          type: string
+          example: RB
+        ranking_type:
+          type: string
+          example: draft
+        rankings:
+          type: object
+        players:
+          type: object
+          additionalProperties:
+            type: object
+            description: Map of player ID to array of player details.
+            required:
+              - player_name
+              - player_team_id
+              - player_position_id
+              - player_page_url
+              - player_square_image_url
+              - player_image_url
+            properties:
+              player_name:
+                type: string
+              player_team_id:
+                type: string
+              player_position_id:
+                type: string
+              player_page_url:
+                type: string
+              player_square_image_url:
+                type: string
+              player_image_url:
+                type: string
+          example:
+            '17240':
+              player_name: Saquon Barkley
+              player_team_id: PHI
+              player_position_id: RB
+              player_page_url: http://www.fantasypros.com/nfl/players/saquon-barkley.php
+              player_square_image_url: >-
+                https://images.fantasypros.com/images/players/nfl/17240/headshot/250x250.png
+              player_image_url: >-
+                https://images.fantasypros.com/images/players/nfl/17240/headshot/250x250.png
+            '23133':
+              player_name: Bijan Robinson
+              player_team_id: ATL
+              player_position_id: RB
+              player_page_url: http://www.fantasypros.com/nfl/players/bijan-robinson.php
+              player_square_image_url: >-
+                https://images.fantasypros.com/images/players/nfl/23133/headshot/250x250.png
+              player_image_url: >-
+                https://images.fantasypros.com/images/players/nfl/23133/headshot/250x250.png
+        experts:
+          type: object
+          additionalProperties:
+            type: object
+            description: Map of expert ID to array of expert details.
+            required:
+              - expert_name
+              - expert_display_name
+              - expert_twitter_url
+              - expert_source_id
+              - expert_source_name
+              - expert_source_url
+            properties:
+              expert_name:
+                type: string
+              expert_display_name:
+                type: string
+              expert_twitter_url:
+                type: string
+              expert_source_id:
+                type: string
+              expert_source_name:
+                type: string
+              expert_source_url:
+                type: string
+          example:
+            '2':
+              expert_name: Christopher Harris
+              expert_display_name: Christopher Harris - Harris Football
+              expert_twitter_url: https://twitter.com/HarrisFootball
+              expert_source_id: '315'
+              expert_source_name: Harris Football
+              expert_source_url: http://www.harrisfootball.com/
+            '3':
+              expert_name: Eric Karabell
+              expert_display_name: Eric Karabell - ESPN
+              expert_twitter_url: https://twitter.com/
+              expert_source_id: '1'
+              expert_source_name: ESPN
+              expert_source_url: http://espn.go.com/
+            '4':
+              expert_name: Erik Kuselias
+              expert_display_name: Erik Kuselias - ESPN
+              expert_twitter_url: https://twitter.com/fantasyEK
+              expert_source_id: '1'
+              expert_source_name: ESPN
+              expert_source_url: http://espn.go.com/
+    ComparePlayer:
+      type: object
+      additionalProperties:
+        type: object
+        description: >-
+          Map of player ID for NBA, MLB, and NHL, or scoring type (HALF, PPR,
+          STD) for NFL, to array of expert rankings.
+        additionalProperties:
+          type: array
+          items:
+            type: object
+            properties:
+              expert_id:
+                type: string
+                description: Unique identifier for the expert.
+              rank:
+                type: string
+                description: Rank assigned by the expert.
+            required:
+              - expert_id
+              - rank
+    NFLComparePlayersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ComparePlayers'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NFL
+          example:
+            rankings:
+              STD:
+                '17240':
+                  - expert_id: '6586'
+                    rank: '1'
+                  - expert_id: '22'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '23133':
+                  - expert_id: '6586'
+                    rank: '2'
+                  - expert_id: '22'
+                    rank: '5'
+                  - expert_id: _0
+                    rank: '2'
+              PPR:
+                '17240':
+                  - expert_id: '6586'
+                    rank: '1'
+                  - expert_id: '22'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '23133':
+                  - expert_id: '6586'
+                    rank: '2'
+                  - expert_id: '22'
+                    rank: '5'
+                  - expert_id: _0
+                    rank: '2'
+              HALF:
+                '17240':
+                  - expert_id: '6586'
+                    rank: '1'
+                  - expert_id: '22'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '23133':
+                  - expert_id: '6586'
+                    rank: '2'
+                  - expert_id: '22'
+                    rank: '5'
+                  - expert_id: _0
+                    rank: '2'
+    MLBComparePlayersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ComparePlayers'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - MLB
+          example:
+            rankings:
+              ros:
+                '7354':
+                  - expert_id: '3941'
+                    rank: '1'
+                  - expert_id: '5446'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '46323':
+                  - expert_id: '3941'
+                    rank: '108'
+                  - expert_id: '5446'
+                    rank: '117'
+                  - expert_id: _0
+                    rank: '107'
+    NBAComparePlayersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ComparePlayers'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+          example:
+            rankings:
+              draft:
+                '7354':
+                  - expert_id: '3941'
+                    rank: '1'
+                  - expert_id: '5446'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '46323':
+                  - expert_id: '3941'
+                    rank: '108'
+                  - expert_id: '5446'
+                    rank: '117'
+                  - expert_id: _0
+                    rank: '107'
+    NHLComparePlayersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ComparePlayers'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NHL
+          example:
+            rankings:
+              draft:
+                '7354':
+                  - expert_id: '3941'
+                    rank: '1'
+                  - expert_id: '5446'
+                    rank: '1'
+                  - expert_id: _0
+                    rank: '1'
+                '46323':
+                  - expert_id: '3941'
+                    rank: '108'
+                  - expert_id: '5446'
+                    rank: '117'
+                  - expert_id: _0
+                    rank: '107'
+    Injuries:
+      type: object
+      required:
+        - sport
+        - count
+        - injuries
+      properties:
+        sport:
+          $ref: '#/components/schemas/Sport'
+        count:
+          type: integer
+          example: 509
+        injuries:
+          type: array
+    Injury:
+      type: object
+      required:
+        - player_id
+        - yahoo_id
+        - name
+        - status
+        - injury_type
+        - comment
+        - injury_update_date
+      properties:
+        player_id:
+          type: integer
+          example: 15901
+        yahoo_id:
+          type: string
+          example: '5529'
+        name:
+          type: string
+          example: Brandon Saad
+        injury_type:
+          type: string
+          example: Lower body
+        comment:
+          type: string
+          example: >-
+            Saad will be a game-time decision for Wednesday's (May 14) Game 5
+            against the Oilers, per SinBin.vegas.
+        injury_update_date:
+          type: string
+          example: '2025-05-14'
+    NFLInjuryResponse:
+      allOf:
+        - $ref: '#/components/schemas/Injuries'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NFL
+            injuries:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Injury'
+                  - type: object
+                    required:
+                      - status
+                      - status_short
+                      - ir_weeks
+                      - probability_of_playing
+                      - practice_1
+                      - practice_2
+                      - practice_3
+                      - practice_report_injury_type
+                      - team_practice_1_submitted
+                      - team_practice_2_submitted
+                      - team_practice_3_submitted
+                    properties:
+                      status:
+                        description: An NFL injury status
+                        type: string
+                        enum:
+                          - COV-IR
+                          - Doubtful
+                          - IR
+                          - Not Starting
+                          - OUT
+                          - PUP
+                          - Questionable
+                          - Suspended
+                        example: Questionable
+                      status_short:
+                        description: An NFL injury status short code
+                        type: string
+                        enum:
+                          - S
+                          - O
+                          - IR
+                          - NS
+                          - P
+                          - Q
+                          - D
+                          - L
+                          - '*'
+                          - PUP
+                          - COV-IR
+                          - OUT
+                        example: O
+                      ir_weeks:
+                        type: array
+                        items:
+                          type: integer
+                        example:
+                          - 4
+                          - 5
+                          - 6
+                      probability_of_playing:
+                        type:
+                          - string
+                          - null
+                        example: '0.88797'
+                      practice_1:
+                        type:
+                          - string
+                          - null
+                        enum:
+                          - '--'
+                          - DNP
+                          - Limit
+                          - Full
+                          - null
+                        example: Limit
+                      practice_2:
+                        type:
+                          - string
+                          - null
+                        enum:
+                          - '--'
+                          - DNP
+                          - Limit
+                          - Full
+                          - null
+                        example: Limit
+                      practice_3:
+                        type:
+                          - string
+                          - null
+                        enum:
+                          - '--'
+                          - DNP
+                          - Limit
+                          - Full
+                          - null
+                        example: Full
+                      practice_report_injury_type:
+                        type:
+                          - string
+                          - null
+                        example: Abdomen
+                      team_practice_1_submitted:
+                        type: boolean
+                      team_practice_2_submitted:
+                        type: boolean
+                      team_practice_3_submitted:
+                        type: boolean
+    MLBInjuryResponse:
+      allOf:
+        - $ref: '#/components/schemas/Injuries'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - MLB
+            injuries:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Injury'
+                  - type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        description: An MLB injury status
+                        type: string
+                        enum:
+                          - IL10
+                          - IL15
+                          - IL60
+                          - DFA
+                          - DUP
+                          - FA
+                          - MiLB
+                          - NRI
+                          - OUT
+                          - PL
+                          - REL
+                          - RET
+                          - RST
+                          - SUS
+                          - UDP
+                          - LV
+                        example: IL10
+    NBAInjuryResponse:
+      allOf:
+        - $ref: '#/components/schemas/Injuries'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+            injuries:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Injury'
+                  - type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        description: An NBA injury status
+                        type: string
+                        enum:
+                          - RET
+                          - DTD
+                          - NWT
+                          - OUT
+                          - SUS
+                          - M-LEAGUE
+                          - IR
+                          - TWO-WAY
+                          - G-League
+                          - DUP
+                        example: DTD
+    NHLInjuryResponse:
+      allOf:
+        - $ref: '#/components/schemas/Injuries'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NHL
+            injuries:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Injury'
+                  - type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        description: An NHL injury status
+                        type: string
+                        enum:
+                          - SUS
+                          - DUP
+                          - IR
+                          - M-LEAGUE
+                          - NWT
+                          - RET
+                          - UDP
+                          - Q
+                          - P
+                          - D
+                        example: UDP
+    Experts:
+      type: object
+      required:
+        - sport
+        - count
+        - season
+        - week
+        - accuracy_weekly_season
+        - accuracy_draft_season
+        - experts
+      properties:
+        sport:
+          $ref: '#/components/schemas/Sport'
+        count:
+          type: integer
+          example: 206
+        season:
+          type: string
+          example: 2024
+        week:
+          type: string
+          example: 1
+        accuracy_weekly_season:
+          type: string
+          example: 2024
+        accuracy_draft_season:
+          type: string
+          example: 2023
+        experts:
+          type: array
+    Expert:
+      type: object
+      required:
+        - expert_id
+        - name
+        - source
+        - url
+        - twitter
+        - image_url
+        - bio
+        - positions
+        - default
+      properties:
+        expert_id:
+          type: integer
+          example: 161
+        name:
+          type: string
+          example: Site Rankings
+        source:
+          type: string
+          example: CBS Sports
+        url:
+          type: string
+          format: url
+          example: http://www.cbssports.com/
+        twitter:
+          type: string
+          example: FBninja_com
+        image_url:
+          type: string
+          example: >-
+            https://pbs.twimg.com/profile_images/2539298042/8obzoqldhkr1jwomqfgq.jpeg
+        bio:
+          type: string
+          example: >-
+            I've been writing on a separate blog for just a while now, but have
+            been contributing to my instagram page for over a year. … 5+ years.
+            I think I can be a useful asset on the expert platform, and am
+            available to contribute breaking news very often.
+        positions:
+          type: object
+          description: >
+            Map of position codes (e.g. PG, SG, ALL…) to the last-updated
+            timestamp.
+          additionalProperties:
+            type: string
+            format: date-time
+            example: '2024-10-02 19:32:24'
+          example:
+            ALL: '2024-10-02 19:32:24'
+            PG: '2024-10-02 19:32:24'
+            SG: '2024-10-02 19:32:24'
+            SF: '2024-10-02 19:32:24'
+            PF: '2024-10-02 19:32:24'
+            G: '2024-10-02 19:32:25'
+            F: '2024-10-02 19:32:25'
+            C: '2024-09-30 18:07:21'
+        defaults:
+          type: object
+          description: Map of position codes to a boolean default flag
+          additionalProperties:
+            type: boolean
+            example: false
+          example:
+            ALL: false
+            PG: false
+            SG: false
+            SF: false
+            PF: false
+            G: false
+            F: false
+            C: false
+    NFLExpertsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Experts'
+        - type: object
+          required:
+            - accuracy_weekly_last_season
+          properties:
+            sport:
+              enum:
+                - NFL
+            accuracy_weekly_last_season:
+              type: string
+              example: 2022
+            experts:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Expert'
+                  - type: object
+                    required:
+                      - accuracy_weekly
+                      - accuracy_draft
+                      - accuracy_weekly_last_season
+                    properties:
+                      accuracy_weekly:
+                        type: object
+                        description: >
+                          Map of position codes (e.g. QB, WR, ALL…) to the
+                          experts weekly rankings accuracy score
+                        additionalProperties:
+                          type: integer
+                          example: 59
+                      accuracy_draft:
+                        type: object
+                        description: >
+                          Map of position codes (e.g. QB, WR, ALL…) to the
+                          experts draft rankings accuracy score
+                        additionalProperties:
+                          type: integer
+                          example: 71
+                      accuracy_weekly_last_season:
+                        type: object
+                        description: >
+                          Map of position codes (e.g. QB, WR, ALL…) to the
+                          experts weekly rankings accuracy score from last
+                          season
+                        additionalProperties:
+                          type: integer
+                          example: 25
+              example:
+                expert_id: 93
+                name: Jared Smola
+                source: Draft Sharks
+                url: http://draftsharks.com/
+                twitter: SmolaDS
+                image_url: >-
+                  https://pbs.twimg.com/profile_images/1053807620774117376/5Re8jeFO.jpg
+                bio: >-
+                  Jared has been with Draft Sharks since 2007, helping the site
+                  capture numerous expert league titles and accuracy awards.  He
+                  got his start in fantasy football at the tender age of 9,
+                  winning a championship on the legs of Barry Sanders.  Jared is
+                  known as "Rain Man" around the Draft Sharks office for his
+                  tight-knit relationship with projections.
+                accuracy_weekly:
+                  ALL: 27
+                  QB: 39
+                  RB: 30
+                  WR: 40
+                  TE: 28
+                  K: 5
+                  DST: 37
+                accuracy_draft:
+                  ALL: 35
+                  DST: 63
+                  K: 27
+                  QB: 64
+                  RB: 36
+                  TE: 215
+                  WR: 46
+                accuracy_weekly_last_season:
+                  ALL: 51
+                  QB: 54
+                  RB: 32
+                  WR: 63
+                  TE: 109
+                  K: 43
+                  DST: 89
+                positions:
+                  QB: '2024-09-08 16:54:28'
+                  DST: '2024-09-08 16:54:29'
+                  K: '2024-09-08 16:54:29'
+                  RB: '2024-09-08 16:54:29'
+                  WR: '2024-09-08 16:54:29'
+                  TE: '2024-09-08 16:54:29'
+                  FLX: '2024-09-08 16:54:29'
+                  OP: '2024-09-08 16:54:29'
+                default:
+                  QB: true
+                  DST: true
+                  K: true
+                  RB: true
+                  WR: true
+                  TE: true
+                  FLX: true
+                  OP: true
+    MLBExpertsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Experts'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - MLB
+            experts:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Expert'
+                  - type: object
+                    required:
+                      - accuracy_draft
+                    properties:
+                      accuracy_draft:
+                        type: object
+                        description: >
+                          Map of position codes (e.g. ALL, OF, 2B…) to the
+                          experts draft rankings accuracy score
+                        additionalProperties:
+                          type: integer
+                          example: 2
+              example:
+                expert_id: 7
+                name: Andy Behrens
+                source: Yahoo! Sports
+                url: https://sports.yahoo.com/fantasy/
+                twitter: andybehrens
+                image_url: ''
+                bio: >-
+                  Andy Behrens writes for Yahoo! Sports, providing fantasy
+                  football and fantasy baseball coverage at Roto Arcade. Before
+                  working with Yahoo!, Andy wrote for ESPN.com, the Chicago
+                  Sports Review, the Chicago Reader, and NBA.com. He is the
+                  president of the Fantasy Sports Writers Association and also
+                  the author of three novels for young readers.
+                accuracy_draft:
+                  1B: 1
+                  2B: 4
+                  3B: 10
+                  ALL: 16
+                  C: 22
+                  OF: 31
+                  RP: 9
+                  SP: 36
+                  SS: 5
+                positions:
+                  RP: '2024-03-28 13:38:01'
+                  DH: '2024-03-28 13:37:59'
+                  RF: '2024-03-28 13:37:56'
+                  CF: '2024-03-28 13:37:53'
+                  LF: '2024-03-28 13:37:51'
+                  OF: '2024-03-28 13:37:48'
+                  SS: '2024-03-28 13:37:46'
+                  3B: '2024-03-28 13:37:43'
+                  2B: '2024-03-28 13:37:41'
+                  C: '2024-03-28 13:37:38'
+                  1B: '2024-03-28 13:37:38'
+                  P: '2024-03-28 13:37:35'
+                  H: '2024-03-28 13:37:32'
+                  ALL: '2024-03-28 13:37:29'
+                  SP: '2024-03-28 13:25:47'
+                default:
+                  RP: false
+                  DH: false
+                  RF: false
+                  CF: false
+                  LF: false
+                  OF: false
+                  SS: false
+                  3B: false
+                  2B: false
+                  C: false
+                  1B: false
+                  P: false
+                  H: false
+                  ALL: false
+                  SP: false
+    NBAExpertsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Experts'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+            experts:
+              $ref: '#/components/schemas/Expert'
+    NHLExpertsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Experts'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NHL
+            experts:
+              $ref: '#/components/schemas/Expert'
+    PlayerRankings:
+      type: object
+      required:
+        - sport
+        - count
+        - season
+        - week
+        - experts
+        - players
+      properties:
+        sport:
+          $ref: '#/components/schemas/Sport'
+        count:
+          type: integer
+          example: 509
+        season:
+          type: string
+          example: 2024
+        week:
+          type: string
+          example: '0'
+        experts:
+          type:
+            - object
+            - null
+        players:
+          type: array
+    PlayerRanking:
+      type: object
+      required:
+        - id
+        - player_name
+        - short_name
+        - first_name
+        - last_name
+        - reverse_name
+        - position_id
+        - positions
+        - team_id
+        - filename
+        - large_image_url
+        - square_image_url
+        - rank
+      properties:
+        id:
+          type: integer
+          example: 15901
+        player_name:
+          type: string
+          example: Al Horford
+        short_name:
+          type: string
+          example: A. Horford
+        first_name:
+          type: string
+          example: Al
+        last_name:
+          type: string
+          example: Horford
+        reverse_name:
+          type: string
+          example: Horford, Al
+        position_id:
+          type: string
+          example: PF, C
+        positions:
+          type: array
+          items:
+            type: string
+          example:
+            - PF
+            - C
+        team_id:
+          type: string
+          example: BOS
+        filename:
+          type: string
+          format: url
+          example: http://www.fantasypros.com/nba/players/al-horford.php
+        large_image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nba/2005/headshot/250x250.png
+        square_image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nba/2005/headshot/70x70.png
+        image_url:
+          type: string
+          format: url
+          example: >-
+            https://images.fantasypros.com/images/players/nba/2005/headshot/70x70.png
+    PlayerRank:
+      type: object
+      properties:
+        ECR:
+          $ref: '#/components/schemas/ECRMetrics'
+        ECR_MIN:
+          $ref: '#/components/schemas/ECRMetrics'
+        ECR_MAX:
+          $ref: '#/components/schemas/ECRMetrics'
+        ECR_AVG:
+          $ref: '#/components/schemas/ECRMetrics'
+        ECR_STD:
+          $ref: '#/components/schemas/ECRMetrics'
+        ADP:
+          type: object
+          required:
+            - ALL
+          properties:
+            ALL:
+              type: integer
+    NFLPlayerRankingResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlayerRankings'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NFL
+            experts:
+              description: Expert count for many different ranking types (NFL ONLY)
+              type: object
+              example:
+                WK1-STD:
+                  QB: 204
+                  RB: 195
+                  WR: 195
+                  TE: 195
+                  FLX: 190
+                  OP: 188
+                  K: 144
+                  DST: 148
+                  IDP: 27
+                  DL: 29
+                  LB: 29
+                  DB: 29
+                WK1-PPR:
+                  RB: 197
+                  WR: 197
+                  TE: 196
+                  FLX: 190
+                  OP: 189
+                WK1-HALF:
+                  RB: 199
+                  WR: 199
+                  TE: 198
+                  FLX: 193
+                  OP: 190
+                STD:
+                  ALL: 225
+                  QB: 232
+                  RB: 224
+                  WR: 224
+                  TE: 224
+                  OP: 217
+                  K: 173
+                  DST: 163
+                  IDP: 32
+                  DL: 33
+                  LB: 33
+                  DB: 33
+                  TQB: 1
+                  TRB: 1
+                  TWR: 1
+                  TTE: 1
+                  TK: 1
+                  TOL: 3
+                  HC: 1
+                PPR:
+                  ALL: 223
+                  RB: 223
+                  WR: 223
+                  TE: 223
+                  OP: 215
+                HALF:
+                  ALL: 227
+                  RB: 228
+                  WR: 228
+                  TE: 228
+                  OP: 220
+                DYN:
+                  ALL: 55
+                  QB: 54
+                  RB: 54
+                  WR: 55
+                  TE: 54
+                  K: 25
+                  DST: 22
+                  OP: 55
+                  IDP: 7
+                  DL: 8
+                  LB: 8
+                  DB: 8
+                BB-HALF:
+                  ALL: 18
+                  QB: 19
+                  RB: 19
+                  WR: 19
+                  TE: 19
+                  FLX: 18
+                  DST: 11
+            ecr_experts:
+              description: >-
+                An object containing expert IDs associated with each ranking
+                type and position
+              type: object
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/PlayerRanking'
+                  - type: object
+                    required:
+                      - rank
+                    properties:
+                      rank:
+                        $ref: '#/components/schemas/PlayerRank'
+    MLBPlayerRankingResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlayerRankings'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - MLB
+            experts:
+              type: null
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/PlayerRanking'
+                  - type: object
+                    required:
+                      - rank
+                    properties:
+                      rank:
+                        $ref: '#/components/schemas/PlayerRank'
+    NBAPlayerRankingResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlayerRankings'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NBA
+            experts:
+              type: null
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/PlayerRanking'
+                  - type: object
+                    required:
+                      - rank
+                    properties:
+                      rank:
+                        $ref: '#/components/schemas/PlayerRank'
+    NHLPlayerRankingResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlayerRankings'
+        - type: object
+          properties:
+            sport:
+              enum:
+                - NHL
+            experts:
+              type: null
+            players:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/PlayerRanking'
+                  - type: object
+                    required:
+                      - rank
+                    properties:
+                      rank:
+                        $ref: '#/components/schemas/PlayerRank'
+    ECRMetrics:
+      type: object
+      description: |
+        Mapping of metric codes or scoring‐variant keys to either:
+        1. a plain integer, or
+        2. a nested object mapping sub‐codes to integers.
+      additionalProperties:
+        oneOf:
+          - type: integer
+            description: ECR value
+            example: 115
+          - type: object
+            description: Nested metrics by position
+            additionalProperties:
+              type: integer
+              example: 21
+      examples:
+        nestedECR:
+          summary: Nested ECR values by scoring types and position
+          value:
+            WK1-STD:
+              DST: 14
+            WK1-PPR:
+              DST: 14
+            WK1-HALF:
+              DST: 14
+            STD:
+              ALL: 191
+              DST: 8
+              TOL: 17
+            PPR:
+              DST: 8
+              ALL: 195
+            HALF:
+              DST: 8
+              ALL: 200
+            DYN:
+              ALL: 226
+              DST: 3
+            BB-HALF:
+              ALL: 229
+              DST: 8
+        singleECR:
+          summary: A single ECR value
+          value:
+            ALL: 115
+            C: 39
+    NFLQBPlayerProjections:
+      title: QB Projections
+      description: A player projection object for QBs
+      type: object
+      required:
+        - points
+        - points_ppr
+        - points_half
+        - pass_att
+        - pass_cmp
+        - pass_yds
+        - pass_tds
+        - pass_ints
+        - pass_yds_300
+        - pass_yds_400
+        - rush_att
+        - rush_yds
+        - rush_tds
+        - rush_yds_100
+        - rush_yds_200
+        - scrimage_yards_100
+        - scrimage_yards_200
+        - fumbles
+        - ret_tds
+        - 2pt_tds
+      properties:
+        points:
+          type: number
+          example: 371.11
+        points_ppr:
+          type: number
+          example: 371.11
+        points_half:
+          type: number
+          example: 371.11
+        pass_att:
+          type: number
+          example: 436.85
+        pass_cmp:
+          type: number
+          example: 294.13
+        pass_yds:
+          type: number
+          example: 3723.59
+        pass_tds:
+          type: number
+          example: 32.07
+        pass_ints:
+          type: number
+          example: 7.47
+        pass_yds_300:
+          type: number
+          example: 0
+        pass_yds_400:
+          type: number
+          example: 0
+        rush_att:
+          type: number
+          example: 137.42
+        rush_yds:
+          type: number
+          example: 866.91
+        rush_tds:
+          type: number
+          example: 3.94
+        rush_yds_100:
+          type: number
+          example: 0
+        rush_yds_200:
+          type: number
+          example: 0
+        scrimage_yards_100:
+          type: number
+          example: 0
+        scrimage_yards_200:
+          type: number
+          example: 0
+        fumbles:
+          type: number
+          example: 4.47
+        ret_tds:
+          type: number
+          example: 0
+        2pt_tds:
+          type: number
+          example: 0
+    NFLRBWRTEPlayerProjections:
+      title: RB/WR/TE Projections
+      description: A player projection object for offensive players RB, WR, TE
+      type: object
+      required:
+        - points
+        - points_ppr
+        - points_half
+        - rush_att
+        - rush_yds
+        - rush_tds
+        - rush_yds_100
+        - rush_yds_200
+        - scrimage_yards_100
+        - scrimage_yards_200
+        - rec_rec
+        - rec_yds
+        - rec_tds
+        - rec_yds_100
+        - rec_yds_200
+        - fumbles
+        - ret_tds
+        - 2pt_tds
+      properties:
+        points:
+          type: number
+          example: 259.92
+        points_ppr:
+          type: number
+          example: 300.26
+        points_half:
+          type: number
+          example: 280.09
+        rush_att:
+          type: number
+          example: 301.1
+        rush_yds:
+          type: number
+          example: 1581.36
+        rush_tds:
+          type: number
+          example: 10.01
+        rush_yds_100:
+          type: number
+          example: 0
+        rush_yds_200:
+          type: number
+          example: 0
+        scrimage_yards_100:
+          type: number
+          example: 0
+        scrimage_yards_200:
+          type: number
+          example: 0
+        rec_rec:
+          type: number
+          example: 40.35
+        rec_yds:
+          type: number
+          example: 315
+        rec_tds:
+          type: number
+          example: 2.05
+        rec_yds_100:
+          type: number
+          example: 0
+        rec_yds_200:
+          type: number
+          example: 0
+        fumbles:
+          type: number
+          example: 1.03
+        ret_tds:
+          type: number
+          example: 0
+        2pt_tds:
+          type: number
+          example: 0
+    NFLKPlayerProjections:
+      title: K Projections
+      description: A player projection object for kickers
+      type: object
+      required:
+        - points
+        - points_ppr
+        - points_half
+        - fga
+        - fg
+        - xpt
+      properties:
+        points:
+          type: number
+          example: 259.92
+        points_ppr:
+          type: number
+          example: 300.26
+        points_half:
+          type: number
+          example: 280.09
+        fga:
+          type: number
+          example: 38.03
+        fg:
+          type: number
+          example: 33.74
+        xpt:
+          type: number
+          example: 40.83
+    NFLDSTPlayerProjections:
+      title: DST Projections
+      description: A player projection object for DST
+      type: object
+      required:
+        - points
+        - points_ppr
+        - points_half def_sack
+        - def_int
+        - def_td
+        - def_pa_a
+        - def_pa_b
+        - def_pa_c
+        - def_pa_d
+        - def_pa_e
+        - def_pa_f
+        - def_pa_g
+        - def_safety
+        - def_ff
+        - def_fr
+        - def_retd
+      properties:
+        points:
+          type: number
+          example: 259.92
+        points_ppr:
+          type: number
+          example: 300.26
+        points_half:
+          type: number
+          example: 280.09
+        def_sack:
+          type: number
+          example: 47.58
+        def_int:
+          type: number
+          example: 13.94
+        def_td:
+          type: number
+          example: 2.91
+        def_pa_a:
+          type: number
+          example: 0
+        def_pa_b:
+          type: number
+          example: 0
+        def_pa_c:
+          type: number
+          example: 0
+        def_pa_d:
+          type: number
+          example: 0
+        def_pa_e:
+          type: number
+          example: 0
+        def_pa_f:
+          type: number
+          example: 0
+        def_pa_g:
+          type: number
+          example: 0
+        def_safety:
+          type: number
+          example: 0
+        def_ff:
+          type: number
+          example: 22.58
+        def_fr:
+          type: number
+          example: 14.81
+        def_retd:
+          type: number
+          example: 0
+    NFLIDPPlayerProjections:
+      title: IDP Projections
+      description: A player projection object for IDP players
+      type: object
+      required:
+        - points
+        - points_ppr
+        - points_half
+        - def_sack
+        - def_int
+        - def_td
+        - def_tackle
+        - def_assist
+        - def_safety
+        - def_ff
+        - def_fr
+        - def_pd
+        - def_tlost
+      properties:
+        points:
+          type: number
+          example: 259.92
+        points_ppr:
+          type: number
+          example: 300.26
+        points_half:
+          type: number
+          example: 280.09
+        def_sack:
+          type: number
+          example: 2.83
+        def_int:
+          type: number
+          example: 1.16
+        def_td:
+          type: number
+          example: 0.16
+        def_tackle:
+          type: number
+          example: 156.63
+        def_assist:
+          type: number
+          example: 63.39
+        def_safety:
+          type: number
+          example: 0
+        def_ff:
+          type: number
+          example: 4.05
+        def_fr:
+          type: number
+          example: 2.63
+        def_pd:
+          type: number
+          example: 6.27
+        def_tlost:
+          type: number
+          example: 0
+    MLBHPlayerProjections:
+      title: H Projections
+      description: A player projection object for hitters
+      type: object
+      required:
+        - fpid
+        - player_id
+        - yahooid
+        - team_id
+        - name
+        - pa
+        - ab
+        - g
+        - hits
+        - 1b
+        - 2b
+        - 3b
+        - runs
+        - hrs
+        - rbi
+        - bb
+        - ibb
+        - hbp
+        - sf
+        - sb
+        - cs
+        - so
+        - ave
+        - obp
+        - slg
+        - ops
+      properties:
+        fpid:
+          type: number
+          example: 6810
+        player_id:
+          type: number
+          example: 6810
+        yahooid:
+          type:
+            - string
+            - null
+          example: '11771'
+        team_id:
+          type: string
+          example: KC
+        name:
+          type: string
+          example: Bobby Witt Jr.
+        pa:
+          type:
+            - string
+            - number
+            - null
+          example: 665
+        ab:
+          type:
+            - string
+            - number
+            - null
+          example: 604
+        g:
+          type:
+            - string
+            - number
+            - null
+          example: 153
+        hits:
+          type:
+            - string
+            - number
+            - null
+          example: 178
+        1b:
+          type:
+            - string
+            - number
+            - null
+          example: 105
+        2b:
+          type:
+            - string
+            - number
+            - null
+          example: 36
+        3b:
+          type:
+            - string
+            - number
+            - null
+          example: 8
+        runs:
+          type:
+            - string
+            - number
+            - null
+          example: 104
+        hrs:
+          type:
+            - string
+            - number
+            - null
+          example: 30
+        rbi:
+          type:
+            - string
+            - number
+            - null
+          example: 95
+        bb:
+          type:
+            - string
+            - number
+            - null
+          example: 48
+        ibb:
+          type:
+            - string
+            - number
+            - null
+          example: 4
+        hbp:
+          type:
+            - string
+            - number
+            - null
+          example: 6
+        sf:
+          type:
+            - string
+            - number
+            - null
+          example: 6
+        sb:
+          type:
+            - string
+            - number
+            - null
+          example: 34
+        cs:
+          type:
+            - string
+            - number
+            - null
+          example: 10
+        so:
+          type:
+            - string
+            - number
+            - null
+          example: 109
+        ave:
+          type:
+            - string
+            - null
+          example: '.295'
+        obp:
+          type:
+            - string
+            - null
+          example: '.347'
+        slg:
+          type:
+            - string
+            - null
+          example: '.533'
+        ops:
+          type:
+            - string
+            - null
+          example: '.880'
+    MLBPPlayerProjections:
+      title: P Projections
+      description: A player projection object for pitchers
+      type: object
+      required:
+        - fpid
+        - player_id
+        - yahooid
+        - team_id
+        - name
+        - g
+        - gs
+        - qs
+        - cg
+        - sv
+        - bs
+        - hd
+        - ip
+        - w
+        - l
+        - sho
+        - h
+        - er
+        - hr
+        - k
+        - bbi
+        - wp
+        - hp
+        - bk
+        - era
+        - whip
+        - bf
+        - baa
+        - k9
+        - svh
+        - nsvh
+      properties:
+        fpid:
+          type: number
+          example: 43633
+        player_id:
+          type: number
+          example: 43633
+        yahooid:
+          type:
+            - string
+            - null
+          example: '11763'
+        team_id:
+          type: string
+          example: DET
+        name:
+          type: string
+          example: Tarik Skubal
+        g:
+          type:
+            - string
+            - number
+            - null
+          example: 31
+        gs:
+          type:
+            - string
+            - number
+            - null
+          example: 31
+        qs:
+          type:
+            - string
+            - number
+            - null
+          example: 20
+        cg:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        sv:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        bs:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        hd:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        ip:
+          type:
+            - string
+            - number
+            - null
+          example: '189.7'
+        w:
+          type:
+            - string
+            - number
+            - null
+          example: 14
+        l:
+          type:
+            - string
+            - number
+            - null
+          example: 8
+        sho:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        h:
+          type:
+            - string
+            - number
+            - null
+          example: 150
+        er:
+          type:
+            - string
+            - number
+            - null
+          example: 61
+        hr:
+          type:
+            - string
+            - number
+            - null
+          example: 17
+        k:
+          type:
+            - string
+            - number
+            - null
+          example: 219
+        bbi:
+          type:
+            - string
+            - number
+            - null
+          example: 42
+        wp:
+          type:
+            - string
+            - number
+            - null
+          example: ''
+        hp:
+          type:
+            - string
+            - number
+            - null
+          example: 7
+        bk:
+          type:
+            - string
+            - number
+            - null
+          example: ''
+        era:
+          type:
+            - string
+            - number
+            - null
+          example: '2.88'
+        whip:
+          type:
+            - string
+            - number
+            - null
+          example: '1.01'
+        bf:
+          type:
+            - string
+            - number
+            - null
+          example: 756
+        baa:
+          type:
+            - string
+            - number
+            - null
+          example: '0.21'
+        k9:
+          type:
+            - string
+            - number
+            - null
+          example: '10.41'
+        svh:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+        nsvh:
+          type:
+            - string
+            - number
+            - null
+          example: 0
+    wordColon:
+      description: A single word or string of colon delimited words
+      type: string
+      pattern: ^(\w+)((?:\:\w+)+)?$
+    digitColon:
+      description: A single ID or string of colon delimited IDs
+      type: string
+      pattern: ^(\d+)((?:\:\d+)+)?$
+    digitComma:
+      description: A single ID or string of comma delimited IDs
+      type: string
+      pattern: ^(\d+)((?:\,\d+)+)?$
+    mpbLeagueKey:
+      description: An MPB/DW league key
+      type: string
+      pattern: >-
+        ^(mlb|nfl|nba)~[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      example: nfl~cd789a16-00f2-43c0-af80-f9d876c9e33e
+  parameters:
+    Sport:
+      name: sport
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Sport'
+    Season:
+      name: season
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Season'
+    Position:
+      name: position
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/SPORTPositions'
+    PositionNotRequired:
+      name: position
+      in: query
+      schema:
+        $ref: '#/components/schemas/SPORTPositions'
+    RankingType:
+      name: type
+      in: query
+      schema:
+        $ref: '#/components/schemas/SPORTRankingTypes'
+    Scoring:
+      name: scoring
+      in: query
+      schema:
+        $ref: '#/components/schemas/SPORTScoringTypes'
+    NFLPosition:
+      name: position
+      description: Only return players with this position.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/NFLPositions'
+    Filters:
+      name: filters
+      description: A comma delimited string of expert IDs filter rankings by
+      in: query
+      schema:
+        type: string
+        pattern: ^(\d+)((?:\:\d+)+)?$
+        example: '345:332:12'
+    MLBEligibility:
+      name: site_eligibility
+      description: Use this fantasy site's position eligibility (MLB ONLY)
+      in: query
+      required: false
+      schema:
+        type:
+          - string
+          - integer
+        enum:
+          - AO
+          - E
+          - 'Y'
+          - C
+          - CBSSP
+          - FANSP
+          - 1
+          - 2
+          - 3
+          - 103
+          - 122
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: x-api-key
+      in: header

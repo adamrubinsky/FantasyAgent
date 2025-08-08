@@ -165,17 +165,22 @@ class OfficialFantasyProsMCP:
         print(f"🌐 Fetching live rankings from FantasyPros API...")
         
         endpoint = f"nfl/2025/consensus-rankings"
+        
+        # CRITICAL: Use 'OP' for SUPERFLEX rankings, 'DRAFT' type for draft rankings
         params = {
-            "scoring": scoring
+            "scoring": scoring,
+            "type": "DRAFT",  # Always use DRAFT type for draft rankings
+            "week": 0         # Season-long rankings
         }
         
-        # The API requires a position parameter - map "ALL" to get multiple positions
-        if position and position != "ALL":
+        # Map position parameter correctly for SUPERFLEX
+        if position == "ALL" or position == "SUPERFLEX":
+            # Use 'OP' (Offensive Player) for SUPERFLEX rankings
+            params["position"] = "OP"  # This gives proper SUPERFLEX rankings!
+        elif position:
             params["position"] = position
         else:
-            # For "ALL", we need to make multiple requests and combine
-            # But for now, let's default to "QB" since that's most important for SUPERFLEX
-            params["position"] = "QB"  # Will expand this later
+            params["position"] = "OP"  # Default to SUPERFLEX rankings
         
         result = await self._make_api_request(endpoint, params)
         

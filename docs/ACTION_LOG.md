@@ -189,3 +189,151 @@ Rate Limiting: 1 req/sec, 100 req/day (4-hour cache TTL)
 *Critical Bugs Fixed: 3*
 
 **Status**: 🟢 On track for August 14th draft deadline
+
+---
+
+## Day 5 - November 8, 2024: Rankings API Deep Dive
+
+### Critical Discoveries
+
+#### 1. FantasyPros API Limitations
+```
+ISSUE: FantasyPros public API does NOT support SUPERFLEX rankings
+- Only provides standard league rankings (QBs undervalued)
+- Tyreek Hill ranks #30 in API (standard) vs #47 on website (SUPERFLEX)
+- API working correctly with proper parameters (uppercase DRAFT, HALF, etc.)
+```
+
+#### 2. API Parameter Fixes
+```yaml
+# Correct FantasyPros API call structure:
+URL: https://api.fantasypros.com/public/v2/json/nfl/{year}/consensus-rankings
+Headers:
+  x-api-key: {API_KEY}  # In header, not query params
+Params:
+  position: ALL         # Must be uppercase
+  scoring: HALF        # Must be uppercase (not "half" or "PPR")
+  type: DRAFT          # Must be uppercase (not "draft")
+  week: 0              # For season-long rankings
+```
+
+#### 3. Sleeper API Limitations
+```
+ISSUE: Sleeper's search_rank is NOT fantasy ranking
+- search_rank = popularity/search frequency, not fantasy value
+- Tyreek Hill search_rank: 27 (meaningless for fantasy)
+- No pre-calculated fantasy rankings available
+- ADP data might be more useful than search_rank
+```
+
+#### 4. Cross-Platform Player Matching Issues
+```
+CRITICAL: Player IDs don't match between platforms
+- FantasyPros: Uses internal player_id system
+- Sleeper: Uses different player_id system
+- Yahoo/ESPN: Have their own ID systems
+- Solution needed: Name-based matching with fuzzy logic
+```
+
+### Solutions Implemented
+
+#### 1. Fixed FantasyPros API Integration
+- Corrected URL path structure (/json/ not /nfl/)
+- Fixed parameter casing (all uppercase)
+- Proper field mapping (player_position_id, player_team_id)
+- Successfully retrieving 546 players
+
+#### 2. Enhanced Sleeper Fallback
+- Filters out retired players (must have current team)
+- Excludes IDP positions (only QB, RB, WR, TE, K, DST)
+- Limits to top 300 players for performance
+- Added warnings about ranking accuracy
+
+### Remaining Issues
+
+#### 1. SUPERFLEX Rankings Problem
+```
+Options to explore:
+1. Use Sleeper ADP data (reflects actual draft behavior)
+2. Manually adjust FantasyPros rankings (boost QBs)
+3. Find alternative API with SUPERFLEX support
+4. Build custom ranking algorithm
+```
+
+#### 2. Cross-Platform Synchronization
+```
+Need to implement:
+- Name-based player matching
+- Fuzzy string matching for variations
+- Fallback to manual mapping for edge cases
+- Unified player ID system internally
+```
+
+### Code Changes Summary
+- `agents/draft_crew.py`: Fixed FantasyPros API parameters, improved Sleeper fallback
+- `mcp_servers/fantasypros_mcp.py`: Added Sleeper fallback integration
+- `core/mcp_integration.py`: Updated fallback chain logic
+
+### Next Steps
+1. ~~Implement Sleeper ADP-based rankings~~ (Using FantasyPros OP instead)
+2. ~~Create SUPERFLEX adjustment algorithm~~ (Solved with OP parameter)
+3. Build cross-platform player matching system
+4. Test with live draft simulation
+
+---
+
+## Day 6 - November 8, 2024: Final API Solutions & Validation
+
+### Major Breakthrough: SUPERFLEX Rankings Solved!
+
+#### Discovery: FantasyPros 'OP' Position Parameter
+```
+SOLUTION FOUND: Use position='OP' (Offensive Player) for SUPERFLEX rankings
+- This returns proper SUPERFLEX valuations with QBs highly valued
+- Tyreek Hill correctly appears at #47 (not #30 from standard)
+- Top 5 are all QBs as expected: Josh Allen, Lamar Jackson, etc.
+```
+
+### API Configuration Fixes
+
+#### 1. FantasyPros API - WORKING
+```python
+# Correct parameters for SUPERFLEX rankings:
+params = {
+    'position': 'OP',       # OP = Offensive Player = SUPERFLEX!
+    'scoring': 'HALF',      # Half-PPR (must be uppercase)
+    'type': 'DRAFT',        # Draft rankings (must be uppercase)
+    'week': 0               # Season-long rankings
+}
+# Returns 602 players with correct SUPERFLEX valuations
+```
+
+#### 2. Anthropic API - VALIDATED
+```
+✅ API Key: Valid and working ($3 usage of $30 credit)
+✅ Claude Sonnet 4 (claude-sonnet-4-20250514): Available
+✅ Claude Opus 4.1 (claude-opus-4-1-20250805): Available
+⚠️ CrewAI/litellm: Authentication issues despite valid key
+```
+
+#### 3. 2025 Data Verification - CONFIRMED
+```
+✅ Omarion Hampton: Found at rank #58 (RB, LAC)
+✅ Ashton Jeanty: Present in rankings
+✅ Other 2025 rookies: All accounted for
+= Rankings are current and include 2025 rookie class
+```
+
+### Remaining Issues
+
+#### CrewAI/litellm Authentication
+- Direct Anthropic API calls work perfectly
+- CrewAI's litellm wrapper fails with 401 authentication error
+- Fallback system ensures functionality continues
+- May need to bypass CrewAI for direct Claude integration
+
+### Code Updates
+- Updated model to Claude Sonnet 4 (claude-sonnet-4-20250514)
+- Fixed FantasyPros API parameters to use 'OP' for SUPERFLEX
+- Documented all API discoveries
+- Prepared system for GitHub push
