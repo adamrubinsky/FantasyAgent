@@ -217,7 +217,7 @@ The AI considers:
 - [ ] Further optimize to 10s response time
 
 ### Future Enhancements
-- [ ] AWS Bedrock deployment
+- [ ] AWS Bedrock AgentCore deployment
 - [ ] Yahoo Fantasy integration
 - [ ] Voice notifications
 - [ ] Historical pattern analysis
