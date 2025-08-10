@@ -151,34 +151,59 @@ async def chat_endpoint(request: Request):
                 "error": "AI agents not initialized"
             })
         
-        # Use the real CrewAI system
-        print("🤖 Calling CrewAI multi-agent system...")
+        # Check if we have an active draft session
+        if draft_crew.draft_active and draft_crew.session_context.get('draft_id'):
+            print("📊 Using active draft context for chat")
+            # Pass empty context - analyze_draft_question will use session_context
+            context = {}
+        else:
+            print("📊 No active draft, using basic context")
+            # Create basic context for non-draft questions
+            context = {
+                "user_question": message,
+                "draft_position": "unknown",
+                "league_format": "SUPERFLEX", 
+                "available_players": [],
+                "current_roster": []
+            }
         
-        # Create context for the agents
-        context = {
-            "user_question": message,
-            "draft_position": "unknown",  # Could be enhanced with session data
-            "league_format": "SUPERFLEX", 
-            "available_players": [],  # Could be populated from Sleeper
-            "current_roster": []
-        }
+        # Add timeout handling
+        import asyncio
         
-        # Use CrewAI to analyze the user's question directly
-        result = await draft_crew.analyze_draft_question(message, context)
-        
-        response_data = {
-            "success": True,
-            "response": result,  # Direct string response from CrewAI
-            "agent_type": "CrewAI Multi-Agent System",
-            "context_understood": True,
-            "agents_used": ["data_collector", "analyst", "strategist", "advisor"]
-        }
-        
-        print("✅ CrewAI response generated")
-        return JSONResponse(response_data)
+        try:
+            # Use CrewAI to analyze the user's question with 30 second timeout
+            print("🤖 Calling CrewAI multi-agent system with 30s timeout...")
+            result = await asyncio.wait_for(
+                draft_crew.analyze_draft_question(message, context),
+                timeout=30.0
+            )
+            
+            response_data = {
+                "success": True,
+                "response": result,  # Direct string response from CrewAI
+                "agent_type": "CrewAI Multi-Agent System",
+                "context_understood": True,
+                "agents_used": ["data_collector", "analyst", "strategist", "advisor"]
+            }
+            
+            print("✅ CrewAI response generated")
+            return JSONResponse(response_data)
+            
+        except asyncio.TimeoutError:
+            print("⏱️ AI analysis timed out after 30 seconds")
+            # Return a useful fallback response
+            fallback = await draft_crew.get_quick_fallback_response(message)
+            return JSONResponse({
+                "success": True,
+                "response": fallback,
+                "agent_type": "Quick Analysis (timeout fallback)",
+                "context_understood": False
+            })
         
     except Exception as e:
         print(f"❌ Chat error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse({
             "success": False,
             "error": str(e),
@@ -299,6 +324,21 @@ async def start_draft_monitoring(request: Request):
                 "success": False,
                 "error": "AI agents not initialized"
             })
+        
+        # FORCE RESET: Clear any cached draft state
+        print(f"🔄 Clearing cached draft state...")
+        draft_crew.draft_active = False
+        draft_crew.session_context = {
+            "draft_id": None,
+            "draft_picks": [],
+            "available_players": [],
+            "user_roster_id": None,
+            "current_pick": 1,
+            "picks_until_user": None,
+            "proactive_recommendations": {},
+            "last_proactive_pick": None
+        }
+        draft_crew.last_pick_count = 0
         
         # Connect to the draft using CrewAI
         result = await draft_crew.connect_to_draft(draft_url, user_roster_id)

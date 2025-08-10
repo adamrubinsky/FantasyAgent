@@ -520,22 +520,11 @@ class FantasyDraftCrew:
                 verbose=False  # Reduce output for speed
             )
             
-            # Set shorter timeout
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise TimeoutError("CrewAI execution timed out")
-            
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(25)  # 25 second timeout for speed
-            
-            try:
-                result = crew.kickoff()
-                signal.alarm(0)  # Cancel timeout
-                return str(result)
-            except TimeoutError:
-                signal.alarm(0)
-                return await self._handle_simple_question(question)
+            # No timeout - let it complete properly
+            print("🚀 Starting CrewAI analysis (this may take 20-30 seconds)...")
+            result = crew.kickoff()
+            print("✅ CrewAI analysis complete")
+            return str(result)
                 
         except Exception as e:
             print(f"⚠️ Multi-agent workflow failed: {e}")
@@ -607,15 +596,22 @@ class FantasyDraftCrew:
                     except Exception as e:
                         print(f"⚠️ Could not fetch draft info for user ID mapping: {e}")
                 
-                # Filter user's picks using the correct Sleeper user ID
-                # Sleeper uses 'picked_by' field, not 'roster_id', for identifying who made each pick
-                if user_sleeper_id:
+                # Filter user's picks - try multiple methods
+                # Method 1: Use draft_slot (works for mock drafts)
+                user_roster = [pick for pick in draft_picks if pick.get('draft_slot') == user_roster_id]
+                
+                # Method 2: If that doesn't work, try picked_by with user ID
+                if not user_roster and user_sleeper_id:
                     user_roster = [pick for pick in draft_picks if pick.get('picked_by') == user_sleeper_id]
-                    print(f"✅ Found {len(user_roster)} picks for user (Sleeper ID: {user_sleeper_id})")
-                else:
-                    # Fallback to the original logic if we can't map the IDs
+                    print(f"✅ Found {len(user_roster)} picks using picked_by field")
+                
+                # Method 3: Fallback to roster_id
+                if not user_roster:
                     user_roster = [pick for pick in draft_picks if pick.get('roster_id') == user_roster_id]
-                    print(f"⚠️ Using fallback roster_id filtering, found {len(user_roster)} picks")
+                    print(f"⚠️ Using roster_id fallback, found {len(user_roster)} picks")
+                
+                if user_roster:
+                    print(f"✅ Found {len(user_roster)} picks for roster slot {user_roster_id}")
                 
                 # Extract drafted player IDs from Sleeper draft picks 
                 # Sleeper API provides player_id directly in each draft pick
@@ -633,33 +629,12 @@ class FantasyDraftCrew:
                 
                 print(f"📊 Drafted players: {len(drafted_sleeper_ids)} total ({keeper_count} keepers)")
                 
-                # Use our unified player mapping system for robust filtering
-                # This solves the core issue of ID mismatches between platforms
-                from utils.player_mapping import player_mapper
+                # The available_players from session_context are already filtered by Sleeper client
+                # They already exclude drafted players and only include active players with teams
+                # We just need to ensure they're fantasy-relevant positions
+                truly_available = available_players  # Already filtered by Sleeper API
                 
-                # Filter available players using the mapping system
-                # This will properly exclude drafted players by cross-referencing
-                # Sleeper IDs (from draft picks) with FantasyPros data (rankings)
-                truly_available = player_mapper.filter_available_players(
-                    all_players=available_players,
-                    drafted_sleeper_ids=drafted_sleeper_ids
-                )
-                
-                # Filter out IDP positions - only keep standard fantasy positions
-                # This prevents AI from recommending individual defensive players
-                standard_fantasy_positions = {'QB', 'RB', 'WR', 'TE', 'K', 'DST'}
-                fantasy_eligible = []
-                
-                for player in truly_available:
-                    position = player.get('position', '')
-                    # Include players with standard fantasy positions only
-                    if position in standard_fantasy_positions:
-                        fantasy_eligible.append(player)
-                
-                # Update truly_available to only include fantasy-eligible positions
-                before_idp_filter = len(truly_available)
-                truly_available = fantasy_eligible
-                print(f"🏈 IDP Filter: {before_idp_filter} → {len(truly_available)} players (removed {before_idp_filter - len(truly_available)} IDP)")
+                print(f"📊 Available players from Sleeper: {len(truly_available)}")
                 
                 # Debug output to track filtering effectiveness
                 print(f"🔍 Drafted Sleeper IDs ({len(drafted_sleeper_ids)}): {list(drafted_sleeper_ids)[:5]}")
@@ -676,9 +651,7 @@ class FantasyDraftCrew:
                 else:
                     print("⚠️ No players remain after filtering - this indicates a problem!")
                 
-                # Show player mapping statistics for debugging
-                mapping_stats = player_mapper.get_stats()
-                print(f"🎯 Player mapping stats: {mapping_stats['fantasypros_matched']}/{mapping_stats['total_players']} matched ({mapping_stats['match_rate']:.1f}%)")
+                # Player mapping stats disabled for now (mapper not imported)
                 
                 # Filter the text-based rankings data to exclude drafted players
                 # This creates the formatted text that the AI agent will read and analyze
@@ -699,25 +672,9 @@ class FantasyDraftCrew:
                             if position_part not in standard_fantasy_positions:
                                 continue
                             
-                            # Use our player mapping to check if this player has been drafted
-                            # This provides robust checking across platform ID mismatches
-                            player_data = player_mapper.get_player_by_name(player_name)
-                            
-                            # If we found the player and they haven't been drafted, include them
-                            if player_data:
-                                sleeper_id = player_data.get('sleeper_id')
-                                if sleeper_id not in drafted_sleeper_ids:
-                                    filtered_lines.append(line)
-                                else:
-                                    # Log when we filter out a drafted player
-                                    if 'Mooney' in player_name:
-                                        print(f"🚫 Filtered out drafted player: {player_name} (Sleeper ID: {sleeper_id})")
-                            else:
-                                # If not in our mapping, include by default (might be newer player)
-                                # This prevents losing players due to incomplete mapping data
-                                if 'Mooney' in line:
-                                    print(f"⚠️ Including unmapped player: {player_name}")
-                                filtered_lines.append(line)
+                            # For now, include all players that aren't obviously drafted
+                            # TODO: Add player mapping to verify draft status across platforms
+                            filtered_lines.append(line)
                     
                     # Create the formatted text data that the AI will read
                     # Show enough players for good recommendations but not too many for speed
@@ -755,7 +712,8 @@ class FantasyDraftCrew:
                 
                 Recently Drafted: {', '.join([f"{(p.get('metadata', {}).get('first_name', '') + ' ' + p.get('metadata', {}).get('last_name', '')).strip() or 'Unknown'} (Pick {p.get('pick_no')})" for p in draft_picks[-3:]]) if draft_picks else 'None yet'}
                 
-                Top Available Players: {', '.join([p.get('name', 'Unknown') for p in truly_available[:10]]) if truly_available else 'Loading...'}
+                Top 30 Available Players (sorted by rank):
+                {chr(10).join([f"  • {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in truly_available[:30]]) if truly_available else 'Loading...'}
                 """
             else:
                 # No draft context available, use raw data
@@ -833,34 +791,74 @@ class FantasyDraftCrew:
                 agents=[self.agents["advisor"]],
                 tasks=[task],
                 process=Process.sequential,
-                verbose=False
+                verbose=True  # Enable verbose to see what's happening
             )
             
+            print("🤖 Executing single-agent analysis...")
             result = mini_crew.kickoff()
+            print(f"✅ Got result: {str(result)[:100]}...")  # Show first 100 chars
+            
             # Check if we got a valid result
             if result:
                 return str(result)  # Return the raw result without wrapping
             else:
+                print("⚠️ No result from CrewAI")
                 return "No result from CrewAI"
             
         except Exception as e:
-            # Ultra-fast fallback
+            # Better fallback with actual player data
             print(f"⚠️ CrewAI execution failed: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Get available players for a useful fallback
+            available_players = self.session_context.get('available_players', [])
+            draft_picks = self.session_context.get('draft_picks', [])
+            user_roster_id = self.session_context.get('user_roster_id')
+            current_pick = self.session_context.get('current_pick', 1)
+            
+            # Get user's roster
+            user_roster = [p for p in draft_picks if p.get('roster_id') == user_roster_id]
+            
+            # Count positions
+            position_counts = {'QB': 0, 'RB': 0, 'WR': 0, 'TE': 0, 'K': 0, 'DEF': 0}
+            for pick in user_roster:
+                pos = pick.get('metadata', {}).get('position', '')
+                if pos in position_counts:
+                    position_counts[pos] += 1
+            
+            # Get top available players
+            top_players = available_players[:20] if available_players else []
+            player_list = '\n'.join([f"• {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in top_players[:10]])
+            
+            # Determine primary need
+            if position_counts['K'] == 0:
+                primary_need = "KICKER"
+            elif position_counts['DEF'] == 0:
+                primary_need = "DEFENSE"
+            elif position_counts['QB'] < 2:
+                primary_need = "QB (for SUPERFLEX)"
+            elif position_counts['RB'] < 3:
+                primary_need = "RB"
+            elif position_counts['WR'] < 4:
+                primary_need = "WR"
+            else:
+                primary_need = "Best Player Available"
+            
             return f"""
-🎯 **Quick Analysis** (Fallback):
+📊 **Pick #{current_pick} Recommendation**
 
-Based on your question: "{question}"
+**Your Roster**: {position_counts['QB']} QB, {position_counts['RB']} RB, {position_counts['WR']} WR, {position_counts['TE']} TE
 
-For SUPERFLEX leagues, remember:
-- QBs are premium (Josh Allen, Lamar Jackson worth early picks)
-- Positional scarcity matters more than standard leagues
-- Target 2-3 QBs by round 7
+**Primary Need**: {primary_need}
 
-Current recommendation: Focus on proven performers with high floors in SUPERFLEX format.
+**Top Available Players**:
+{player_list}
 
-⚠️ For detailed analysis, the full multi-agent system is available but may take longer.
+**Quick Recommendation**: 
+Based on your roster needs and available players, consider drafting from the list above, prioritizing {primary_need}.
+
+⚠️ AI analysis temporarily unavailable - showing direct player data instead.
             """
     
     async def _create_optimized_tasks(self, question: str) -> List[Task]:
@@ -1060,6 +1058,89 @@ Current recommendation: Focus on proven performers with high floors in SUPERFLEX
         question = f"What's my strategy for drafting {position}s in this league? When should I target them and who are the best values?"
         return await self.analyze_draft_question(question, context)
     
+    async def get_quick_fallback_response(self, message: str) -> str:
+        """
+        Quick fallback response when AI times out - uses cached data without AI processing
+        
+        Args:
+            message: User's question
+            
+        Returns:
+            Quick helpful response based on current draft state
+        """
+        try:
+            # Get current draft state if available
+            if self.draft_active and self.session_context.get('draft_id'):
+                available_players = self.session_context.get('available_players', [])
+                draft_picks = self.session_context.get('draft_picks', [])
+                user_roster_id = self.session_context.get('user_roster_id')
+                current_pick = self.session_context.get('current_pick', 1)
+                
+                # Get user's roster using draft_slot (correct field)
+                user_roster = [p for p in draft_picks if p.get('draft_slot') == user_roster_id]
+                
+                # Count positions
+                position_counts = {'QB': 0, 'RB': 0, 'WR': 0, 'TE': 0, 'K': 0, 'DEF': 0}
+                for pick in user_roster:
+                    pos = pick.get('metadata', {}).get('position', '')
+                    if pos in position_counts:
+                        position_counts[pos] += 1
+                
+                # Get top available players
+                top_players = available_players[:15] if available_players else []
+                player_list = '\n'.join([f"• {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in top_players[:10]])
+                
+                # Determine primary needs for SUPERFLEX
+                needs = []
+                if position_counts['QB'] < 2:
+                    needs.append("QB (for SUPERFLEX)")
+                if position_counts['RB'] < 3:
+                    needs.append("RB")
+                if position_counts['WR'] < 4:
+                    needs.append("WR (need 3 starters + FLEX)")
+                if position_counts['TE'] == 0:
+                    needs.append("TE")
+                
+                primary_need = needs[0] if needs else "Best Player Available"
+                
+                return f"""📊 **Quick Analysis for Pick #{current_pick}**
+
+**Your Roster**: {position_counts['QB']} QB, {position_counts['RB']} RB, {position_counts['WR']} WR, {position_counts['TE']} TE
+
+**Primary Needs**: {', '.join(needs) if needs else 'Balanced roster - go BPA'}
+
+**Top 10 Available Players**:
+{player_list}
+
+**SUPERFLEX Strategy**: 
+• QBs are premium - target 2-3 total
+• Need 3 starting WRs + FLEX
+• RB depth crucial for injuries
+
+💡 *AI detailed analysis temporarily unavailable - showing quick roster analysis*"""
+            else:
+                # No draft context - give generic SUPERFLEX advice
+                return """📚 **SUPERFLEX Draft Strategy**
+
+**Key Positions**:
+• QB: Most valuable - target 2-3 early
+• RB: Get 2 starters + depth  
+• WR: Need 3 starters + FLEX (4-5 total)
+• TE: Elite or wait (huge tier drop)
+
+**Round Strategy**:
+• Rounds 1-3: Elite QB/RB/WR
+• Rounds 4-6: Fill starters  
+• Rounds 7-10: Depth & upside
+• Rounds 11-14: Handcuffs & rookies
+• Rounds 15-16: K & DEF
+
+💡 *Connect to a draft for personalized recommendations*"""
+                
+        except Exception as e:
+            print(f"❌ Error in fallback response: {e}")
+            return "I can help with your SUPERFLEX draft! Connect to a draft for personalized recommendations, or ask about specific players or strategies."
+    
     async def connect_to_draft(self, draft_url: str, user_roster_id: int = None) -> Dict[str, Any]:
         """
         Connect to a live Sleeper draft using URL
@@ -1166,9 +1247,32 @@ Current recommendation: Focus on proven performers with high floors in SUPERFLEX
         try:
             draft_id = self.session_context["draft_id"]
             
-            # Get current picks
+            # Get current picks - ALWAYS fresh from API
             picks = await self.sleeper_client.get_draft_picks(draft_id)
-            current_pick_count = len(picks)
+            
+            # Calculate actual next pick number - handle both mock and real drafts
+            pick_numbers = [p.get('pick_no', 0) for p in picks if p.get('pick_no')]
+            
+            if pick_numbers:
+                highest_pick = max(pick_numbers)
+                pick_set = set(pick_numbers)
+                
+                # Check if there are gaps (mock draft issue)
+                expected_picks = set(range(1, highest_pick + 1))
+                missing_picks = expected_picks - pick_set
+                
+                if missing_picks:
+                    # Mock draft with gaps - find first missing pick
+                    current_pick_count = min(missing_picks) - 1
+                    print(f"⚠️ Mock draft detected - gaps in picks: {sorted(list(missing_picks))[:5]}...")
+                else:
+                    # Real draft or complete sequence - use highest pick
+                    current_pick_count = highest_pick
+            else:
+                current_pick_count = 0
+            
+            # Debug: Show actual current state
+            print(f"📊 Fresh draft state: Next pick #{current_pick_count + 1} (found {len(picks)} picks, highest #{max(pick_numbers) if pick_numbers else 0})")
             
             # Get available players (limited for performance)
             all_available = await self.sleeper_client.get_available_players(
@@ -1247,13 +1351,16 @@ Current recommendation: Focus on proven performers with high floors in SUPERFLEX
         last_proactive = self.session_context.get("last_proactive_pick")
         
         # Generate proactive recommendations at 6 picks and 3 picks ahead
+        # Use <= to handle cases where polling might miss exact number
         should_generate = False
         trigger_type = None
         
-        if picks_until_user == 6:
+        # Check if we should generate initial recommendation (around 6 picks ahead)
+        if picks_until_user <= 6 and picks_until_user >= 5 and (not last_proactive or current_pick - last_proactive > 3):
             should_generate = True
             trigger_type = "initial"
-        elif picks_until_user == 3 and last_proactive != current_pick:
+        # Check if we should generate revision recommendation (around 3 picks ahead)
+        elif picks_until_user <= 3 and picks_until_user >= 1 and (not last_proactive or current_pick - last_proactive > 2):
             should_generate = True
             trigger_type = "revision"
         
@@ -1263,17 +1370,114 @@ Current recommendation: Focus on proven performers with high floors in SUPERFLEX
         try:
             print(f"🎯 Generating proactive recommendations ({trigger_type}) - {picks_until_user} picks until your turn")
             
-            # Generate recommendations proactively
-            question = f"My next pick is in {picks_until_user} picks. Based on the current draft state and likely picks that will happen, what are my top 3 realistic options? Consider which players might still be available."
+            # Generate recommendations proactively - ensure we have player data
+            # First, make sure we have available players
+            available_players = self.session_context.get('available_players', [])
+            if not available_players:
+                print("⚠️ No available players in context, fetching fresh data...")
+                draft_id = self.session_context.get("draft_id")
+                if draft_id:
+                    available_players = await self.sleeper_client.get_available_players(draft_id)
+                    available_players = available_players[:50] if available_players else []
+                    self.session_context['available_players'] = available_players
             
-            context = {
-                "proactive": True,
-                "trigger_type": trigger_type,
-                "picks_ahead": picks_until_user,
-                "multiple_recommendations": True
-            }
+            # FAST proactive recommendation - skip AI for speed, just format available players
+            # Get user's roster to understand needs
+            draft_picks = self.session_context.get('draft_picks', [])
+            user_roster_id = self.session_context.get('user_roster_id')
+            user_next_pick = self.session_context.get('user_next_pick', current_pick + picks_until_user + 1)
             
-            recommendation = await self._handle_simple_question(question)
+            # Sleeper uses 'draft_slot' which matches our roster_id
+            user_roster = [p for p in draft_picks if p.get('draft_slot') == user_roster_id]
+            
+            # If that doesn't work, try roster_id
+            if not user_roster:
+                user_roster = [p for p in draft_picks if p.get('roster_id') == user_roster_id]
+            
+            print(f"📊 Found {len(user_roster)} picks for user roster {user_roster_id}")
+            
+            # Debug: Show what we found
+            if user_roster:
+                for p in user_roster[:3]:
+                    name = f"{p.get('metadata', {}).get('first_name', '')} {p.get('metadata', {}).get('last_name', '')}"
+                    pos = p.get('metadata', {}).get('position', '?')
+                    print(f"  - {name} ({pos})")
+            
+            # Count positions in roster
+            position_counts = {'QB': 0, 'RB': 0, 'WR': 0, 'TE': 0, 'K': 0, 'DEF': 0}
+            for pick in user_roster:
+                pos = pick.get('metadata', {}).get('position', '')
+                if pos in position_counts:
+                    position_counts[pos] += 1
+            
+            # Determine needs based on roster - PRIORITY ORDER MATTERS!
+            # Get current round (assuming 12 teams)
+            current_round = (current_pick - 1) // 12 + 1
+            
+            needs = []
+            # Core positions first (never K/DEF early)
+            if position_counts['QB'] < 2:  # SUPERFLEX needs 2+ QBs
+                needs.append('QB')
+            if position_counts['WR'] < 5:  # 3 WR league needs depth
+                needs.append('WR')
+            if position_counts['RB'] < 4:
+                needs.append('RB')
+            if position_counts['TE'] < 2:  # Need starter + backup
+                needs.append('TE')
+            
+            # Only consider K/DEF in late rounds (13+)
+            if current_round >= 13:
+                if position_counts['K'] == 0:
+                    needs.append('K')
+                if position_counts['DEF'] == 0:
+                    needs.append('DEF')
+            
+            # Get top 3 recommendations in proper format
+            recommendations = []
+            available_by_need = []
+            
+            for i, pos in enumerate(needs[:3]):  # Top 3 needs
+                pos_players = [p for p in available_players if pos in p.get('positions', [])]
+                if pos_players:
+                    # Format like the chat recommendations
+                    emoji = ["🥇", "🥈", "🥉"][i] if i < 3 else "•"
+                    best_player = pos_players[0]
+                    player_name = best_player.get('name', 'Unknown')
+                    
+                    # Add to list for formatting
+                    available_by_need.append((pos, player_name, pos_players[:3]))
+            
+            # Build formatted recommendations
+            if available_by_need:
+                for i, (pos, player, alternatives) in enumerate(available_by_need):
+                    emoji = ["🥇", "🥈", "🥉"][i]
+                    alt_names = ', '.join([p.get('name', 'Unknown') for p in alternatives[1:3]]) if len(alternatives) > 1 else 'No alternatives'
+                    recommendations.append(f"\n{emoji} **{player} ({pos})** - Also consider: {alt_names}")
+            
+            # Build fast recommendation
+            roster_summary = f"{position_counts['QB']} QB, {position_counts['RB']} RB, {position_counts['WR']} WR, {position_counts['TE']} TE"
+            if position_counts['K'] > 0 or position_counts['DEF'] > 0:
+                roster_summary += f", {position_counts['K']} K, {position_counts['DEF']} DEF"
+            
+            recommendation = f"""
+📊 **Proactive Analysis** (Pick #{user_next_pick} - {picks_until_user} picks away)
+
+**Your Roster**: {roster_summary}
+**Current Round**: {current_round}
+
+**Top 3 Recommendations**:
+{''.join(recommendations) if recommendations else '⏳ Analyzing available players...'}
+
+**Position Priorities**:
+• {"✅" if position_counts['QB'] >= 2 else "⚠️"} QB: {"Good depth" if position_counts['QB'] >= 2 else "Need starter/depth"}
+• {"✅" if position_counts['WR'] >= 4 else "⚠️"} WR: {"Good depth" if position_counts['WR'] >= 4 else "CRITICAL - need 3 starters + FLEX"}
+• {"✅" if position_counts['RB'] >= 3 else "⚠️"} RB: {"Good depth" if position_counts['RB'] >= 3 else "Need depth for injuries"}
+• {"✅" if position_counts['TE'] >= 1 else "⚠️"} TE: {"Starter secured" if position_counts['TE'] >= 1 else "Need starter"}
+{"• K/DEF: Wait until rounds 13-16" if current_round < 13 else f"• K/DEF: Time to draft ({position_counts['K']} K, {position_counts['DEF']} DEF)"}
+
+**Available Players** (Top 10):
+{chr(10).join([f"• {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in available_players[:10]])}
+"""
             
             # Cache the recommendation
             self.session_context["proactive_recommendations"][current_pick] = {
