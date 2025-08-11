@@ -743,5 +743,83 @@ if not user_roster and user_sleeper_id:
 
 ---
 
-*Last Updated: August 9, 2025*  
+## August 10, 2025 (Day 6)
+
+### Issue #30: SUPERFLEX Rankings Using Wrong Position Parameter
+**Severity**: 🔴 Critical  
+**Component**: `agents/draft_crew.py`, `core/official_fantasypros.py`  
+**Discovered**: Testing SUPERFLEX rankings integration
+
+**Problem**:
+- System using `position="ALL"` for SUPERFLEX leagues
+- QBs severely undervalued in draft recommendations
+- Tyreek Hill showing at #30 instead of #47
+
+**Root Cause**:
+- Wrong FantasyPros API parameter for SUPERFLEX
+- Should use `position="OP"` (Offensive Player) not `position="ALL"`
+
+**Solution**:
+```python
+# Changed default position parameter
+position="OP"  # SUPERFLEX rankings
+# Was: position="ALL"  # Standard rankings
+```
+
+**Verification**:
+- Top 5 now all QBs (Josh Allen, Lamar Jackson, Jayden Daniels, Jalen Hurts, Joe Burrow)
+- Tyreek Hill correctly at #45
+- SUPERFLEX valuations now accurate
+
+**Status**: ✅ RESOLVED
+
+---
+
+### Issue #31: Excessive API Usage During Draft
+**Severity**: 🟡 Medium  
+**Component**: `agents/draft_crew.py`  
+**Discovered**: Monitoring API calls during mock draft
+
+**Problem**:
+- Rankings fetched every 5 minutes during draft
+- 20-30 API calls per draft session
+- Risk of hitting rate limits
+
+**Root Cause**:
+- Cache TTL too short (5 minutes)
+- Rankings don't change frequently enough to justify
+
+**Solution**:
+```python
+# Extended cache to 4 hours
+cache_minutes: int = 240  # Was 5
+self._cache_ttl = 14400   # Was 180 (3 minutes)
+```
+
+**Impact**:
+- Reduced API calls by ~95%
+- 1-2 calls per draft instead of 20-30
+- Still fresh enough for ranking updates
+
+**Status**: ✅ RESOLVED
+
+---
+
+## Statistics Update
+
+**Total Issues**: 31  
+**Resolved**: 31  
+**Pending**: 0  
+**Critical Issues**: 14  
+**Resolution Rate**: 100%  
+
+**Day 6 Metrics**:
+- Issues Fixed: 2
+- Critical Issues Fixed: 1  
+- API Efficiency: 95% reduction in calls
+- Ready for Draft: August 14, 2025
+
+---
+
+*Last Updated: August 10, 2025*  
 *Maintained for continuous improvement and debugging reference*

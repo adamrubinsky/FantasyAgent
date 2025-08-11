@@ -20,8 +20,12 @@ from core.league_context import league_manager
 
 
 # Helper function to get live rankings data for agents
-async def get_cached_rankings_data(position: str = "ALL", limit: int = 50, cache_minutes: int = 5) -> str:
-    """Cached version of live rankings data to reduce API calls during rapid queries"""
+async def get_cached_rankings_data(position: str = "OP", limit: int = 50, cache_minutes: int = 240) -> str:
+    """Cached version of live rankings data to reduce API calls during rapid queries
+    
+    Default cache is 4 hours (240 minutes) since rankings rarely change more than daily.
+    This prevents overusing the API while still getting updates if needed.
+    """
     import time
     
     cache_key = f"{position}_{limit}"
@@ -221,7 +225,7 @@ def get_sleeper_rankings_fallback() -> str:
         print(f"❌ Sleeper fallback also failed: {e}")
         return f"ERROR: Both FantasyPros and Sleeper APIs failed - {str(e)}"
 
-async def get_live_rankings_data(position: str = "ALL", limit: int = 50) -> str:
+async def get_live_rankings_data(position: str = "OP", limit: int = 50) -> str:
     """
     Fetch current FantasyPros rankings for agents to use in analysis
     
@@ -247,7 +251,7 @@ async def get_live_rankings_data(position: str = "ALL", limit: int = 50) -> str:
             rankings = await mcp.get_rankings(limit=limit)
             
             # Filter by position if user requested specific position
-            if position != "ALL":
+            if position not in ["ALL", "OP"]:  # OP is SUPERFLEX, don't filter
                 filtered_players = []
                 for player in rankings.get('players', []):
                     # Match exact position (case-sensitive)
@@ -380,7 +384,7 @@ class FantasyDraftCrew:
         # Performance caching - optimized for speed
         self._cached_rankings = None
         self._cache_timestamp = None
-        self._cache_ttl = 180  # 3 minutes for faster updates
+        self._cache_ttl = 14400  # 4 hours - good balance for rankings updates
     
     # Remove tools method since we're handling data differently
     
@@ -564,7 +568,7 @@ class FantasyDraftCrew:
         
         try:
             # Get SUPERFLEX rankings - balance between coverage and speed
-            raw_live_data = await get_cached_rankings_data(position="ALL", limit=100)  # Reduced for faster response
+            raw_live_data = await get_cached_rankings_data(position="OP", limit=200)  # Get 200 for full draft coverage
             
             # Get draft context if available
             draft_context = ""
@@ -918,7 +922,7 @@ Based on your roster needs and available players, consider drafting from the lis
         context_str = json.dumps(self.session_context, indent=2)
         
         # Get live data for agents to use
-        live_rankings = await get_live_rankings_data(limit=100)
+        live_rankings = await get_live_rankings_data(limit=200)  # Get 200 for better coverage
         
         # Extract player names from question for specific projections
         player_names = []
