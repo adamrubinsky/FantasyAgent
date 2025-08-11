@@ -1,0 +1,49 @@
+{
+  "passed": 4,
+  "failed": 3,
+  "results": [
+    {
+      "test": "Server Running",
+      "passed": true,
+      "details": "Server active on port 3000",
+      "timestamp": "2025-08-09T09:23:30.395987"
+    },
+    {
+      "test": "Draft Connection",
+      "passed": true,
+      "details": "Connected to draft: 1259757417588072448",
+      "timestamp": "2025-08-09T09:23:31.678751"
+    },
+    {
+      "test": "Pick Number",
+      "passed": true,
+      "details": "Current pick #43 (expected ~#43)",
+      "timestamp": "2025-08-09T09:23:33.799196"
+    },
+    {
+      "test": "Roster Detection",
+      "passed": false,
+      "details": "HTTPConnectionPool(host='localhost', port=3000): Read timed out. (read timeout=10)",
+      "timestamp": "2025-08-09T09:23:44.806787"
+    },
+    {
+      "test": "AI Recommendations",
+      "passed": false,
+      "details": "HTTPConnectionPool(host='localhost', port=3000): Read timed out. (read timeout=35)",
+      "timestamp": "2025-08-09T09:24:20.816862"
+    },
+    {
+      "test": "Draft Status",
+      "passed": false,
+      "details": "HTTPConnectionPool(host='localhost', port=3000): Read timed out. (read timeout=5)",
+      "timestamp": "2025-08-09T09:24:25.821031"
+    },
+    {
+      "test": "Proactive Recommendations",
+      "passed": true,
+      "details": "Not triggered yet (None picks away)",
+      "timestamp": "2025-08-09T09:24:25.821075"
+    }
+  ],
+  "timestamp": "2025-08-09T09:24:25.821142"
+}

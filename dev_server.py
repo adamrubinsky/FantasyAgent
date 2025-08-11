@@ -34,9 +34,10 @@ app = FastAPI(
     description="Development server with no caching and real AI agents"
 )
 
-# CORS for local development
+# CORS for local development - Fixed for Python 3.13
+from fastapi.middleware.cors import CORSMiddleware as CORS
 app.add_middleware(
-    CORSMiddleware,
+    CORS,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
@@ -377,6 +378,10 @@ async def get_draft_status():
         # Update draft state
         status = await draft_crew.update_draft_state()
         
+        # Add user roster from session context
+        user_roster = draft_crew.session_context.get('user_roster', [])
+        status['user_roster'] = user_roster
+        
         # Check if proactive recommendations were generated
         proactive_rec = status.get("proactive_recommendation", {})
         if proactive_rec.get("proactive_generated"):
@@ -385,7 +390,8 @@ async def get_draft_status():
         return JSONResponse({
             "success": True,
             "draft_status": status,
-            "draft_active": draft_crew.draft_active
+            "draft_active": draft_crew.draft_active,
+            "user_roster_count": len(user_roster)
         })
         
     except Exception as e:

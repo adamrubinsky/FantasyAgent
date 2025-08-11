@@ -363,7 +363,7 @@ class FantasyDraftCrew:
         # Create specialized agents
         self.agents = self._create_agents()
         
-        # Track conversation context
+        # Track conversation context with enhanced analytics
         self.session_context = {
             "draft_picks": [],
             "available_players": [],
@@ -374,7 +374,9 @@ class FantasyDraftCrew:
             "current_pick": 1,
             "picks_until_user": None,
             "proactive_recommendations": {},
-            "last_proactive_pick": None
+            "last_proactive_pick": None,
+            "recent_picks": [],  # Track last 6 picks for run detection
+            "player_adps": {}    # Store ADP values for value detection
         }
         
         # Draft monitoring state
@@ -563,14 +565,14 @@ class FantasyDraftCrew:
         return is_simple
     
     async def _handle_simple_question(self, question: str) -> str:
-        """Fast single-agent response for simple questions"""
-        print("🚀 Using optimized single-agent response...")
+        """Fast single-agent response for simple questions with enhanced strategy"""
+        print("🚀 Using optimized single-agent response with advanced analytics...")
         
         try:
-            # Get SUPERFLEX rankings - balance between coverage and speed
+            # Get SUPERFLEX rankings with ADP data - essential for value detection
             raw_live_data = await get_cached_rankings_data(position="OP", limit=200)  # Get 200 for full draft coverage
             
-            # Get draft context if available
+            # Get draft context with enhancements
             draft_context = ""
             if self.draft_active:
                 draft_picks = self.session_context.get('draft_picks', [])
@@ -701,12 +703,41 @@ class FantasyDraftCrew:
                     else:
                         user_turn_info = f"📍 Your next pick: #{user_next_pick}"
                 
+                # Calculate round and parse ADPs for advanced analytics
+                round_num = ((current_pick - 1) // 12) + 1
+                
+                # Store recent picks for run detection
+                self.session_context['recent_picks'] = draft_picks[-6:] if len(draft_picks) >= 6 else draft_picks
+                
+                # Parse ADPs if not already done
+                if not self.session_context.get('player_adps'):
+                    self._parse_and_store_adps(raw_live_data)
+                
+                # Detect value picks
+                value_picks = []
+                for player in truly_available[:20]:
+                    player_name = player.get('player_name', player.get('name', ''))
+                    adp_value = self._calculate_adp_value(player_name, current_pick)
+                    if adp_value >= 10:
+                        value_picks.append(f"{player_name} (falling {adp_value:.0f} spots)")
+                
+                # Check for runs and stacks
+                run_position = self._detect_positional_run()
+                stack_opportunities = self._get_qb_wr_stacks(truly_available)
+                round_strategy = self._get_superflex_round_strategy(round_num)
+                
                 draft_context = f"""
-                LIVE DRAFT CONTEXT:
+                LIVE DRAFT CONTEXT - ROUND {round_num}:
                 • Overall Pick: #{current_pick} 
                 • {user_turn_info}
                 • Your Picks So Far: {len(user_roster)}
                 • Truly Available Players: {len(truly_available)} (excluding drafted)
+                
+                {round_strategy}
+                
+                📊 VALUE ALERTS: {', '.join(value_picks[:3]) if value_picks else 'No major values'}
+                🏃 RUN DETECTION: {f'{run_position} run happening - fade for value!' if run_position else 'No runs'}
+                🔗 STACKING: {f"{stack_opportunities[0]['player_name']} stacks with {stack_opportunities[0]['qb_name']}" if stack_opportunities else 'None'}
                 
                 Your Current Roster: {', '.join([f"{(p.get('metadata', {}).get('first_name', '') + ' ' + p.get('metadata', {}).get('last_name', '')).strip() or 'Unknown'} ({p.get('metadata', {}).get('position', '?')})" for p in user_roster]) if user_roster else 'None yet'}
                 
@@ -1254,6 +1285,9 @@ Based on your roster needs and available players, consider drafting from the lis
             # Get current picks - ALWAYS fresh from API
             picks = await self.sleeper_client.get_draft_picks(draft_id)
             
+            # CRITICAL: Store picks in session context so other methods can use them
+            self.session_context['draft_picks'] = picks
+            
             # Calculate actual next pick number - handle both mock and real drafts
             pick_numbers = [p.get('pick_no', 0) for p in picks if p.get('pick_no')]
             
@@ -1309,13 +1343,21 @@ Based on your roster needs and available players, consider drafting from the lis
                         picks_until_user = user_pick_in_round - current_pick_count - 1
                         break
                 
+            # Extract user's roster from picks
+            user_roster = [p for p in picks if p.get('draft_slot') == user_roster_id]
+            if not user_roster:  # Fallback to roster_id field
+                user_roster = [p for p in picks if p.get('roster_id') == user_roster_id]
+            
+            print(f"👤 User roster: {len(user_roster)} picks for slot {user_roster_id}")
+            
             # Update context
             self.session_context.update({
                 "draft_picks": picks,
                 "available_players": available_players,  # Already limited to 50
                 "current_pick": current_pick_count + 1,
                 "user_next_pick": user_next_pick_number,
-                "picks_until_user": picks_until_user
+                "picks_until_user": picks_until_user,
+                "user_roster": user_roster  # Add user roster to context
             })
             
             # Track new picks
@@ -1625,6 +1667,214 @@ Based on your roster needs and available players, consider drafting from the lis
         else:
             return f"{position_summary}. Well-rounded roster, focus on BPA or positional depth"
 
+    def _parse_and_store_adps(self, rankings_data: str):
+        """
+        Parse ADP values from rankings data and store in session context
+        
+        Args:
+            rankings_data: Raw rankings text with ADP values
+        """
+        adps = {}
+        lines = rankings_data.split('\n')
+        
+        for line in lines:
+            if 'ADP:' in line:
+                try:
+                    # Parse line like "Player Name (POS) - Rank: X, ADP: Y, Team: Z"
+                    name_part = line.split(' (')[0].strip()
+                    adp_part = line.split('ADP:')[1].split(',')[0].strip()
+                    adps[name_part] = float(adp_part)
+                except:
+                    continue
+        
+        # Store in session context for later use
+        self.session_context['player_adps'] = adps
+        print(f"📊 Parsed {len(adps)} player ADPs for value detection")
+    
+    def _calculate_adp_value(self, player_name: str, current_pick: int) -> float:
+        """
+        Calculate how much value a player represents based on ADP vs current pick
+        
+        Positive score = player falling (good value)
+        Negative score = reaching for player
+        
+        Args:
+            player_name: Name of the player
+            current_pick: Current draft pick number
+            
+        Returns:
+            Value score from -50 to +50
+        """
+        # Get player's ADP from stored data
+        player_adp = self.session_context.get('player_adps', {}).get(player_name, current_pick)
+        
+        # Calculate how many picks the player has fallen or risen
+        value_differential = player_adp - current_pick
+        
+        # Scale the value score
+        if value_differential > 0:
+            # Player has fallen - this is good value!
+            # Log scale for significance (falling 20 picks is better than linear)
+            import math
+            value_score = min(50, math.log(1 + value_differential) * 10)
+        else:
+            # We're reaching for this player
+            value_score = max(-50, value_differential / 2)
+            
+        return value_score
+    
+    def _detect_positional_run(self) -> Optional[str]:
+        """
+        Check if a positional run is happening (3+ of same position in last 6 picks)
+        
+        Returns:
+            Position being run on (e.g., "RB") or None
+        """
+        recent_picks = self.session_context.get('recent_picks', [])
+        if len(recent_picks) < 6:
+            return None
+            
+        # Count positions in last 6 picks
+        position_counts = {}
+        for pick in recent_picks[-6:]:
+            pos = pick.get('metadata', {}).get('position', '')
+            if pos:
+                position_counts[pos] = position_counts.get(pos, 0) + 1
+        
+        # Check if any position has 3+ selections (that's a run!)
+        for pos, count in position_counts.items():
+            if count >= 3:
+                return pos
+                
+        return None
+    
+    def _get_qb_wr_stacks(self, available_players: List[Dict]) -> List[Dict]:
+        """
+        Find QB-WR/TE stacking opportunities with QBs on roster
+        
+        Stacking QB with pass catchers increases ceiling for both
+        
+        Args:
+            available_players: List of available players
+            
+        Returns:
+            List of stacking opportunities with bonus scores
+        """
+        stacking_opportunities = []
+        user_roster = self.session_context.get('user_roster', [])
+        
+        # Find QBs on our roster
+        roster_qbs = []
+        for player in user_roster:
+            if player.get('metadata', {}).get('position') == 'QB':
+                roster_qbs.append({
+                    'name': f"{player.get('metadata', {}).get('first_name', '')} {player.get('metadata', {}).get('last_name', '')}",
+                    'team': player.get('metadata', {}).get('team', '')
+                })
+        
+        # Look for available WRs/TEs from same team
+        for qb in roster_qbs:
+            if not qb['team']:
+                continue
+                
+            for player in available_players[:30]:  # Check top 30 available
+                player_team = player.get('team', '')
+                player_positions = player.get('positions', [])
+                
+                if player_team == qb['team'] and any(pos in ['WR', 'TE'] for pos in player_positions):
+                    stacking_opportunities.append({
+                        'player_name': player.get('name', 'Unknown'),
+                        'qb_name': qb['name'],
+                        'team': player_team,
+                        'stack_bonus': 5.0  # Bonus points for stacking
+                    })
+                    
+        return stacking_opportunities
+    
+    def _evaluate_keeper_value(self, player_name: str, current_round: int) -> float:
+        """
+        Evaluate a player's keeper value for next year
+        Focus on late-round values and breakout candidates
+        
+        Args:
+            player_name: Name of the player
+            current_round: Current draft round
+            
+        Returns:
+            Keeper value score (0-20)
+        """
+        keeper_score = 0.0
+        
+        # Late round multiplier (rounds 8+ have more keeper value)
+        if current_round >= 8:
+            keeper_score += (current_round - 7) * 2
+        
+        # Look for rookie/young player indicators in name
+        # (In production, would use actual age/experience data)
+        rookie_indicators = ['jr', 'iii', 'ii', 'rookie']
+        name_lower = player_name.lower()
+        
+        if any(indicator in name_lower for indicator in rookie_indicators):
+            keeper_score += 5
+            
+        # Max keeper score at 20
+        return min(20, keeper_score)
+    
+    def _get_superflex_round_strategy(self, round_num: int) -> str:
+        """
+        Get SUPERFLEX-specific strategy for current round based on decision tree
+        
+        Args:
+            round_num: Current round number (1-16)
+            
+        Returns:
+            Strategy string with specific priorities
+        """
+        user_roster = self.session_context.get('user_roster', [])
+        
+        # Count positions on roster
+        qb_count = sum(1 for p in user_roster if p.get('metadata', {}).get('position') == 'QB')
+        rb_count = sum(1 for p in user_roster if p.get('metadata', {}).get('position') == 'RB')
+        wr_count = sum(1 for p in user_roster if p.get('metadata', {}).get('position') == 'WR')
+        te_count = sum(1 for p in user_roster if p.get('metadata', {}).get('position') == 'TE')
+        
+        # Round-specific SUPERFLEX strategy based on your decision tree
+        strategies = {
+            1: "🎯 ROUND 1: Target elite QB (Allen/Hurts/Lamar/Mahomes) if available, else elite RB/WR",
+            
+            2: f"🎯 ROUND 2: {('MUST GET QB - Target Tier 1-2 (Herbert/Stroud/Burrow)' if qb_count == 0 else 'Elite QB if available OR top-tier RB/WR')}",
+            
+            3: f"🎯 ROUND 3: {('CRITICAL - Secure QB2 now (even slight reach)' if qb_count < 2 else 'Best RB/WR by tier value')}",
+            
+            4: f"🎯 ROUND 4: {('LAST CHANCE - Take ANY starting QB!' if qb_count < 2 else 'Target bell-cow RB or high-volume WR')}",
+            
+            5: "🎯 ROUND 5: High-upside RB/WR, consider QB3 only if injury-prone starters",
+            
+            6: "🎯 ROUND 6: Continue building RB/WR depth, QB3 only at extreme value",
+            
+            7: f"🎯 ROUND 7: RB/WR depth priority{', grab top-8 TE if available' if te_count == 0 else ''}",
+            
+            8: "🎯 ROUND 8: Depth picks with keeper value - target young breakouts",
+            
+            9: "🎯 ROUND 9: Last chance for potential starters",
+            
+            10: "🎯 ROUND 10: Handcuffs for your RBs + high-upside WRs",
+            
+            11: "🎯 ROUND 11: Rookie QBs with starting potential + breakout WRs",
+            
+            12: "🎯 ROUND 12: Pure upside plays - swing for ceiling",
+            
+            13: "🎯 ROUND 13: Final skill position lottery tickets",
+            
+            14: "🎯 ROUND 14: Last upside swings before DST/K",
+            
+            15: "🎯 ROUND 15: DST with easy Weeks 1-3 schedule (weak opposing QBs)",
+            
+            16: "🎯 ROUND 16: Kicker from high-scoring offense (prefer dome/warm weather)"
+        }
+        
+        return strategies.get(round_num, "Best player available with upside")
+    
     def _get_bye_week_analysis(self, user_roster, available_players):
         """
         Analyze bye week distribution to help avoid stacking players with same bye weeks.

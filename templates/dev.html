@@ -500,7 +500,10 @@ All responses come from the real AI agents!
                 // Track seen picks to prevent duplicates
                 this.seenPicks = new Set();
                 
-                // Poll for draft updates every 10 seconds
+                // Track last UI notification time (show every 20 seconds max)
+                this.lastUINotification = 0;
+                
+                // Poll for draft updates every 5 seconds
                 this.draftPolling = setInterval(async () => {
                     try {
                         const response = await fetch('/api/draft-status');
@@ -533,20 +536,26 @@ All responses come from the real AI agents!
                                 );
                             }
                             
-                            // Update status (prevent spam)
-                            if (status.picks_until_user !== null) {
-                                if (status.picks_until_user === 0 && (!this.lastPickStatus || this.lastPickStatus !== 0)) {
+                            // Update status (only show UI notifications every 20 seconds)
+                            const now = Date.now();
+                            const timeSinceLastNotification = now - this.lastUINotification;
+                            
+                            if (status.picks_until_user !== null && timeSinceLastNotification > 20000) {
+                                // Show notification if it's been 20+ seconds
+                                if (status.picks_until_user === 0) {
                                     this.addChatMessage('system', '🚨 YOUR TURN TO PICK! 🚨');
-                                } else if (status.picks_until_user <= 3 && (!this.lastPickStatus || this.lastPickStatus !== status.picks_until_user)) {
+                                    this.lastUINotification = now;
+                                } else if (status.picks_until_user <= 3 && status.picks_until_user > 0) {
                                     this.addChatMessage('system', `⏰ ${status.picks_until_user} picks until your turn`);
+                                    this.lastUINotification = now;
                                 }
-                                this.lastPickStatus = status.picks_until_user;
                             }
+                            this.lastPickStatus = status.picks_until_user;
                         }
                     } catch (error) {
                         console.error('Draft polling error:', error);
                     }
-                }, 10000); // Poll every 10 seconds
+                }, 5000); // Poll every 5 seconds
             }
 
             addChatMessage(sender, message) {

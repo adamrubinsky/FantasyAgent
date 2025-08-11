@@ -281,16 +281,27 @@ class SleeperClient:
         # Loop through every player in the NFL database
         for player_id, player_data in players.items():
             # Check if this player is still available
-            # Conditions: not drafted AND currently active in NFL
-            if player_id not in drafted_player_ids and player_data.get('active', True):
+            # Conditions: not drafted AND currently active in NFL AND on a team
+            # Also filter out players without a team (retired/free agents)
+            if (player_id not in drafted_player_ids and 
+                player_data.get('active', False) and  # Must be explicitly active
+                player_data.get('team') is not None):  # Must have a team
                 
                 # Step 5: Apply position filter if specified
                 # Get player's fantasy positions (could be multiple like RB/WR)
                 positions = player_data.get('fantasy_positions') or []
                 
+                # Filter to only fantasy-relevant positions (no IDP)
+                fantasy_positions = {'QB', 'RB', 'WR', 'TE', 'K', 'DEF'}
+                relevant_positions = [p for p in positions if p in fantasy_positions]
+                
+                # Skip if no fantasy-relevant positions
+                if not relevant_positions:
+                    continue
+                
                 # If position filter specified, check if player matches
                 # If no filter specified, include all positions
-                if not position or position in positions:
+                if not position or position in relevant_positions:
                     
                     # Step 6: Build clean player info dictionary with key data
                     player_info = {
@@ -300,7 +311,7 @@ class SleeperClient:
                         'name': f"{player_data.get('first_name', '')} {player_data.get('last_name', '')}".strip(),
                         
                         'team': player_data.get('team'),  # NFL team (BUF, KC, etc.)
-                        'positions': positions,  # List of fantasy positions
+                        'positions': relevant_positions,  # List of fantasy positions (filtered)
                         
                         # Search rank from Sleeper (1 is best, 999 is unranked)
                         'rank': player_data.get('search_rank', 999),
