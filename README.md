@@ -14,17 +14,17 @@
 An AI-powered fantasy football draft assistant that provides **real-time recommendations** for **SUPERFLEX leagues**. Built with CrewAI multi-agent system, Claude 4 Sonnet, and live data from Sleeper and FantasyPros APIs.
 
 ### ✨ Key Features
-- ⚡ **15 second AI responses** with intelligent recommendations (67% faster!)
+- ⚡ **5 second proactive analysis** at your pick with reasoning
 - 🤖 **CrewAI Multi-Agent System** with Claude 4 Sonnet integration  
 - 🏈 **TRUE SUPERFLEX rankings** using FantasyPros 'OP' position parameter
-- 📊 **Real-time draft monitoring** with 5-second polling
-- 🎯 **Proactive recommendations** at 6 and 3 picks before your turn
-- 📈 **Cross-platform player mapping** for 11,389 players
-- 🔄 **Smart caching system** with 4-hour TTL for API efficiency
+- 📊 **Real-time draft monitoring** with instant updates
+- 🎯 **Proactive recommendations** at 6, 3, and 0 picks ahead
+- 📈 **Keeper value scoring** with graduated blending by round
+- 🔄 **Watchlist discipline** - only reaches within 10-15 picks of ADP
 - 🌐 **Web interface** at http://localhost:3000
 
 ### 🏆 Current Status
-**PRODUCTION READY** as of August 9, 2025 - All critical bugs fixed! Mock draft testing successful!
+**PRODUCTION READY** as of August 12, 2025 - Agent performing as intended! All issues resolved!
 
 ---
 
@@ -133,10 +133,12 @@ llm = LLM(
 )
 ```
 
-### Proactive Recommendations
+### Proactive Recommendations (Enhanced!)
 - Triggers at **6 picks** before your turn (initial analysis)
-- Updates at **3 picks** before your turn (final recommendations)
-- Pre-computed and cached for instant delivery
+- Updates at **3 picks** before your turn (refined recommendations)  
+- Triggers at **0 picks** (your pick) with instant 5-second analysis
+- Shows reasoning for each recommendation (keeper value, position need, etc.)
+- Displays alternatives for each recommended player
 
 ---
 
@@ -201,20 +203,22 @@ The AI considers:
 
 ## 🗺️ Roadmap
 
-### Completed (August 9, 2025)
+### Completed (August 12, 2025)
 - ✅ SUPERFLEX rankings fixed (using OP parameter)
 - ✅ CrewAI/Claude 4 integration
 - ✅ Mock draft testing successful
-- ✅ Performance optimization (67% improvement)
-- ✅ Keeper filtering
-- ✅ Roster detection for mock drafts
-- ✅ Timeout handling with fallbacks
-- ✅ Proactive recommendations formatting
+- ✅ Performance optimization (5s proactive at pick)
+- ✅ Keeper value scoring with graduated blending
+- ✅ Watchlist discipline (no reaching)
+- ✅ Proactive triggers at 6, 3, and 0 picks
+- ✅ Reasoning display in recommendations
+- ✅ K/DEF excluded from keeper logic
+- ✅ Agent performing as intended!
 
-### Next Priority (Day 6)
-- [ ] Stress testing recommendations
-- [ ] Verify FantasyPros OP rankings integration
-- [ ] Further optimize to 10s response time
+### Next Priority  
+- [ ] Stress testing with multiple mock drafts
+- [ ] Real draft preparation
+- [ ] Performance monitoring
 
 ### Future Enhancements
 - [ ] AWS Bedrock AgentCore deployment

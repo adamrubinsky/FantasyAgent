@@ -192,4 +192,101 @@ result = await asyncio.wait_for(
 - ✅ Live mock draft testing successful
 - ✅ 67% performance improvement (45s → 15s)
 - ✅ User satisfied with fixes
+
+---
+
+## Day 8 Evening - Final Refinements & Mock Draft Success
+
+### Session Context
+- **Time**: Day 8 Evening (continuation)
+- **Goal**: Address final issues from mock draft testing
+- **Testing**: Live mock draft rounds 6-16
+- **Result**: Agent performing as intended! 🎉
+
+### Key Issues Identified & Fixed
+
+#### 1. Watchlist Over-Indexing Problem
+**Issue**: Agent was reaching for watchlist players regardless of value
+**Solution**: Added watchlist discipline rules
+- Only consider watchlist players within 10-15 picks of ADP
+- Added KEY RULE 4 to prevent reaching
+- Watchlist now acts as tiebreaker, not primary driver
+
+#### 2. Proactive Analysis Trigger Issues
+**Issue**: Not showing until round 6, not triggering at user's pick
+**Fix**: Enhanced trigger logic
+- Added trigger for picks_until_user == 0 (at pick)
+- Fixed initialization on first connection
+- Proactive now shows at 6, 3, and 0 picks ahead
+
+#### 3. Missing Reasoning in Proactive Window
+**Issue**: Recommendations lacked explanations
+**Solution**: Added comprehensive reasoning
+- Shows keeper value reasoning (rounds 9+)
+- Displays position-specific context
+- Includes value indicators and alternatives
+
+#### 4. Keeper Logic Applied to K/DEF
+**Issue**: Kickers/Defenses showing "strong keeper" labels
+**Fix**: Excluded K/DEF from keeper scoring
+- K/DEF now use pure rankings (no keeper weight)
+- Removed rookie/year labels for these positions
+- Proper prioritization by actual fantasy value
+
+### Code Changes Summary
+
+**agents/draft_crew.py**:
+```python
+# Line 818: Added watchlist discipline
+KEY RULE 4: WATCHLIST DISCIPLINE
+- Only consider watchlist when within 10-15 picks of ADP
+- Watchlist is tiebreaker, not primary factor
+
+# Lines 1554-1572: K/DEF keeper exclusion
+if 'K' in positions or 'DEF' in positions:
+    keeper_base = 0
+    actual_keeper_weight = 0
+    actual_ranking_weight = 1.0
+
+# Lines 1613-1633: Enhanced reasoning logic
+- Added keeper score reasoning
+- Position-specific context
+- Value indicators
+```
+
+### Performance Improvements
+- Proactive analysis: 5 seconds at user's pick ✅
+- Reasoning display: Clear and contextual ✅
+- Watchlist handling: Properly balanced ✅
+- K/DEF recommendations: Based on rankings only ✅
+
+### Mock Draft Test Results
+**Rounds Tested**: 6-16
+**Key Successes**:
+- Round 6: Watchlist discipline working (Pacheco picked over reached watchlist players)
+- Round 9: Proactive triggered at user's pick successfully
+- Round 14: Proper RB/TE depth recommendations
+- Round 15: Mason Taylor (TE) correctly recommended with keeper context
+- Round 16: K/DEF properly prioritized without keeper logic
+
+### Files Modified
+1. **agents/draft_crew.py** (104KB)
+   - Watchlist discipline rules
+   - Proactive trigger fixes
+   - Reasoning enhancements
+   - K/DEF keeper exclusion
+
+2. **dev_server.py** (17KB)
+   - Connection handling improvements
+   - Draft state management
+
+### User Feedback
+"Other than that issue with Kicker/keepers - I think the agent is finally performing how I want it to"
+
+### Session Success Metrics
+- ✅ Watchlist over-indexing fixed
+- ✅ Proactive triggers working at all distances
+- ✅ Reasoning displayed in recommendations
+- ✅ K/DEF properly handled without keeper logic
+- ✅ Agent performing as intended!
 - ✅ Ready for stress testing phase
