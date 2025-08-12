@@ -994,5 +994,48 @@ if not user_roster:  # Fallback to roster_id field
 
 ---
 
-*Last Updated: August 11, 2025*  
+---
+
+### Issue #38: Yahoo OAuth Configuration
+**Severity**: 🟡 Medium  
+**Component**: Yahoo Integration  
+**Discovered**: Day 7 Evening OAuth Setup
+
+**Problem**:
+- OAuth failing with 'access_token' errors
+- Multiple authorization codes not working
+- Confusion between URL vs code entry
+
+**Root Cause**:
+- yfpy library uses 'oob' (out-of-band) redirect
+- Initial app had Read-only permissions (needed Read/Write)
+- User was pasting full URL instead of just code
+
+**Solution**:
+1. Updated Yahoo app to Read/Write permissions
+2. Discovered yfpy needs just the code, not URL
+3. Successfully completed OAuth with code: kez93drhftt5kfdw75cjcfsdha4epub9
+
+**Status**: ✅ RESOLVED
+
+---
+
+## Statistics Update
+
+**Total Issues**: 38  
+**Resolved**: 36  
+**Partially Resolved**: 2  
+**Pending**: 0  
+**Critical Issues**: 16  
+**Resolution Rate**: 94.7%  
+
+**Day 7 Evening Metrics**:
+- Yahoo OAuth: Successfully completed
+- Token Duration: 6 months (until February 2026)
+- Leagues Connected: 2 (Snake & Auction)
+- Documentation: Complete setup guide created
+
+---
+
+*Last Updated: August 11, 2025 - 9:30 PM*  
 *Maintained for continuous improvement and debugging reference*

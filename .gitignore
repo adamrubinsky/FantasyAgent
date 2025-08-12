@@ -95,3 +95,5 @@ bedrock-agentcore/amazon-bedrock-agentcore-samples/
 # Agent Core deployment logs and temp files  
 fantasy-draft-agentcore.log
 **/venv/
+oauth2.json
+private/

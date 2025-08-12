@@ -628,6 +628,45 @@ self.session_context['draft_picks'] = picks
 - **API Calls**: Minimal due to 4-hour cache
 - **Feature Detection**: ADP/Value, Round Strategy detected in responses
 
+---
+
+## Day 7 Evening - August 11, 2025: Yahoo OAuth Success
+
+### Major Accomplishment
+- ✅ **Yahoo OAuth Completed**: Successfully connected to both Yahoo fantasy leagues
+- ✅ **6-Month Token**: Refresh token valid until ~February 2026
+- ✅ **Both Leagues Connected**: Snake (475629) and Auction (682492)
+
+### OAuth Process Learnings
+
+#### Key Discovery
+- **Critical**: yfpy uses 'oob' (out-of-band) redirect internally
+- **Solution**: Paste authorization CODE only, not full URL
+- **Permissions**: Required Read/Write access (initially had Read only)
+
+#### Working Process
+1. Run `yahoo_manual_oauth.py` or `yahoo_oauth_final.py`
+2. Browser opens to Yahoo authorization
+3. User authorizes and gets code displayed on page
+4. Paste just the code (e.g., `kez93drhftt5kfdw75cjcfsdha4epub9`)
+5. Token saved and auto-refreshes for 6 months
+
+### Yahoo League Configuration
+- **Snake Draft League**: ID 475629, Team 5, Aug 19, Full PPR
+- **Auction League**: ID 682492, Team 2, Aug 24, Half-PPR, $200 budget
+
+### Files Created
+- `yahoo_manual_oauth.py`: Working OAuth script
+- `yahoo_oauth_final.py`: Final working version
+- `test_yahoo_verified.py`: Connection verification script
+- `YAHOO_OAUTH_SETUP.md`: Complete setup documentation
+
+### Token Persistence
+- Token stored locally by yfpy library
+- Auto-refreshes access token every ~1 hour
+- Refresh token valid for ~6 months
+- No manual intervention needed until February 2026
+
 ### Files Modified
 - `agents/draft_crew.py`: Major enhancements (700+ lines added)
 - `test_day7_comprehensive.py`: New comprehensive test suite
