@@ -646,3 +646,40 @@ self.session_context['draft_picks'] = picks
 2. Enhance AI prompt to better utilize structured features
 3. Add more sophisticated tier break detection
 4. Implement playoff schedule analysis
+
+---
+
+## Day 7 Continued - Yahoo Integration Setup
+
+### Yahoo Fantasy API Setup
+- ✅ **Created Yahoo Developer App**: OAuth app registered with Client ID/Secret
+- ✅ **Documented League Settings**: Complete scoring rules for both Yahoo leagues
+- ✅ **Installed yfpy Library**: Yahoo Fantasy Python library (v16.0.3)
+- ✅ **Updated requirements.txt**: Added yfpy and yahoo-oauth dependencies
+- ✅ **Created Test Scripts**: test_yahoo_basic.py and test_yfpy_oauth.py
+
+### Yahoo League Configuration
+#### Snake Draft League (Aug 19)
+- League ID: 475629, Team 5
+- FULL PPR scoring with 6PT passing TDs
+- Return yards scoring (25 yards/point)
+- Yardage bonuses at milestones
+
+#### Auction League (Aug 24)  
+- League ID: 682492, Team 2
+- Half-PPR scoring with 4PT passing TDs
+- $200 budget, no kicker position
+- IR spot available
+
+### Files Created/Modified
+- `docs/LEAGUE_SETTINGS.md`: Complete documentation of all 3 leagues
+- `test_yahoo_basic.py`: Basic connection test
+- `test_yfpy_oauth.py`: OAuth flow test script
+- `get_yahoo_leagues.py`: League information retrieval
+- `.env.local`: Added Yahoo credentials and league IDs
+- `requirements.txt`: Added yfpy==16.0.3 and dependencies
+
+### OAuth Status
+- App registered with redirect URI: https://localhost:3000/auth/yahoo/callback
+- OAuth flow ready to complete after Sleeper draft
+- Token will persist in 'auth' folder once authenticated

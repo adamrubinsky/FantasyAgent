@@ -361,10 +361,28 @@ with open('players.json') as f:
 
 ## League-Specific Notes
 
-- **Scoring Format**: [Confirm: PPR/Half/Standard?]
-- **Roster Format**: SUPERFLEX (QB/RB/RB/WR/WR/TE/FLEX/SUPERFLEX)
-- **This means**: QBs are MUCH more valuable
-- **Draft strategy**: Consider QB early, maybe 2 in first 4 rounds
+### League 1: Sleeper SUPERFLEX (Aug 14, 2025)
+- **Scoring Format**: Half-PPR (0.5 points per reception)
+- **Roster Format**: QB/RB/RB/WR/WR/WR/TE/FLEX/FLEX/SUPERFLEX/K/DST
+- **Key Rules**: 4PT passing TDs, SUPERFLEX spot makes QBs EXTREME value
+- **Draft Strategy**: MUST get 2 QBs by Round 4, consider elite QB in Round 1
+- **League ID**: 1221322229137031168, Team: Roster Slot 5
+
+### League 2: Yahoo Snake Draft (Aug 19, 2025)
+- **Scoring Format**: FULL PPR (1.0 point per reception)
+- **Roster Format**: QB/RB/RB/WR/WR/TE/W-R/K/DEF + 7 Bench
+- **Key Rules**: 6PT passing TDs, Return yards (25y/pt), Yardage bonuses
+- **Draft Strategy**: WR-heavy due to full PPR, target pass-catching RBs
+- **League ID**: 475629, Team ID: 5
+- **Special**: Return specialists have added value
+
+### League 3: Yahoo Auction (Aug 24, 2025)
+- **Scoring Format**: Half-PPR (0.5 points per reception)
+- **Roster Format**: QB/WR/WR/RB/RB/TE/W-R-T/DEF + 5 Bench + IR (NO KICKER)
+- **Key Rules**: 4PT passing TDs, $200 budget, No kicker position
+- **Draft Strategy**: Stars & scrubs (spend 70-80% on 3-4 studs)
+- **League ID**: 682492, Team ID: 2
+- **Special**: Has IR spot, tackles for loss scoring
 
 ## Contact & Support
 

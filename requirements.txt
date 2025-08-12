@@ -6,11 +6,11 @@ crewai==0.152.0
 crewai-tools==0.0.1
 
 # Environment and configuration
-python-dotenv==1.0.0
+python-dotenv>=1.1.0  # Updated for compatibility
 
 # HTTP and async support  
 aiohttp==3.9.1
-requests==2.31.0
+requests>=2.31.0  # Updated for yfpy compatibility
 
 # Web UI framework
 fastapi==0.104.1
@@ -57,6 +57,7 @@ beautifulsoup4==4.12.2
 # - Requires FANTASYPROS_API_KEY environment variable
 # - Provides: get_rankings, get_players, get_projections, get_sport_news
 
-# Optional: For future Yahoo integration
-# yfpy==13.0.0
-# yahoo-oauth==2.0
+# Yahoo Fantasy Integration
+yfpy==16.0.3  # Yahoo Fantasy Python library
+yahoo-oauth==2.1.0  # OAuth handling for Yahoo
+ruamel.yaml>=0.18.14  # Updated for compatibility
