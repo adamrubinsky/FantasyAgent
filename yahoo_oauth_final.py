@@ -16,9 +16,9 @@ print("\n" + "="*60)
 print("YAHOO OAUTH - FINAL ATTEMPT")
 print("="*60)
 
-# Your app credentials from Yahoo Developer
-client_id = "dj0yJmk9TE40dEtIRWxrb0hNJmQ9WVdrOU5WRnpZWEpwUkZFbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWRm"
-client_secret = "829ff25b4ffbb597425a9b41a254490cb17132ea"
+# Your app credentials from environment variables
+client_id = os.getenv('YAHOO_CLIENT_ID')
+client_secret = os.getenv('YAHOO_CLIENT_SECRET')
 
 print(f"\n✅ App Configuration Verified:")
 print(f"   App ID: 5QsariDQ")
