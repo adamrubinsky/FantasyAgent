@@ -719,6 +719,270 @@ self.session_context['draft_picks'] = picks
 - `requirements.txt`: Added yfpy==16.0.3 and dependencies
 
 ### OAuth Status
-- App registered with redirect URI: https://localhost:3000/auth/yahoo/callback
-- OAuth flow ready to complete after Sleeper draft
-- Token will persist in 'auth' folder once authenticated
+- ✅ **COMPLETED**: OAuth token valid for 6 months (until February 2026)
+- Token successfully obtained and auto-refreshes
+- Both Yahoo leagues connected and accessible
+- Test with: `python3 test_yahoo_verified.py`
+
+---
+
+## August 12, 2025 (Day 8) - Morning Testing Session
+
+### Comprehensive Mock Draft Testing
+**Time**: Morning
+**Mock Draft URL**: https://sleeper.com/draft/nfl/1260957112058531840
+**Result**: ✅ BEST PERFORMANCE TO DATE
+
+#### Test Methodology
+- Full 17-round mock draft with user as manual participant
+- User in roster slot 5
+- Real-time testing with actual draft picks
+- Chronicled each round for detailed feedback
+
+#### Key Successes
+- **Stacking Logic Working**: Successfully recommended and created Burrow-Higgins and Stroud-Kirk stacks
+- **FantasyPros OP Rankings Confirmed**: Correctly using SUPERFLEX rankings (Najee over Skattebo)
+- **Positional Run Detection**: Accurately identifying and fading runs
+- **Watchlist Integration**: System prioritizing user's starred players (feature not bug!)
+- **User Adoption**: User drafted AI recommendations in 12/17 rounds
+
+#### Performance Metrics
+- Initial query: ~1 minute (too slow)
+- Subsequent queries: 10-20 seconds (improved but above 10s target)
+- Proactive window: Only triggers when draft paused/slowed
+- Cache effectiveness: Rankings cached properly, reducing API calls
+
+#### Issues Discovered
+1. **Proactive Window Timing**: Doesn't trigger during fast mock draft picks
+2. **Position Tracking**: System loses track of K/DEF already drafted
+3. **Keeper League Logic Missing**: Rounds 11+ not prioritizing rookie upside
+4. **Round Number Confusion**: Occasionally thinks wrong round
+5. **Ben Roethlisberger Bug**: Retired player appearing in available list
+6. **Bye Week Logic**: Not mentioned in any recommendations
+
+#### Critical Findings
+- **Proactive vs Chat Logic**: Proactive uses simple rankings, chat uses strategic analysis (good balance!)
+- **Mock vs Real Draft**: Fast robot picks in mock may not reflect real draft timing
+- **User Preferences**: Keeper value > veteran safety in late rounds
+
+#### User's Final Roster
+- **QBs**: Joe Burrow, C.J. Stroud, Cameron Ward
+- **RBs**: De'Von Achane, Travis Etienne, Chuba Hubbard, Jaydon Blue
+- **WRs**: Terry McLaurin, Tee Higgins, Rome Odunze, Christian Kirk, Jalen McMillan, Haylen Noel
+- **TEs**: Brock Bowers, Pat Freiermuth
+- **K**: Brandon Aubrey
+- **DST**: Houston Texans
+
+### Files Created
+- Memory entities for Day 8 testing discoveries
+- Comprehensive test results saved to MCP memory
+
+### Next Priority Fixes
+1. Add proactive trigger at user's pick (0 picks away)
+2. Fix position tracking for K/DEF
+3. Implement keeper league logic for rounds 11+
+4. Investigate retired player data issue
+5. Consider bye week logic implementation
+
+---
+
+## August 12, 2025 (Day 8) - Evening Optimization Session
+
+### Performance Debugging & ADP Awareness
+**Time**: Evening
+**Focus**: Fix 1-minute initial query delay and watchlist over-prioritization
+
+#### Critical Performance Finding
+- **Initial query latency**: 64 seconds (confirmed via curl timing)
+- **Root cause**: CrewAI agents initialize on first query, not server startup
+- **Fix implemented**: Pre-initialization in `startup_event()` 
+
+#### Fixes Completed
+1. **Proactive Triggers** ✅
+   - Added `at_pick` trigger for 0 picks away
+   - Three trigger types: initial (6-5), revision (3-2), at_pick (0)
+
+2. **K/DEF Position Tracking** ✅
+   - Changed rounds from 13+ to 15+ 
+   - Added position filled checking
+   - Won't recommend K/DEF if already drafted
+
+3. **Keeper League Logic** ✅
+   - Hybrid approach: base scores in sleeper_client.py
+   - Graduated blending: R9-10 (10%), R11-12 (30%), R13-14 (50%), R15-17 (70%)
+   - Visual indicators: 🔥 (150+), 🔒 (100+), 📈 (60+)
+
+4. **ADP Reach Prevention** ✅
+   - User feedback: "System over-indexing on watchlist"
+   - Added KEY RULE 4: Don't reach >15 picks before ADP
+   - Example: C.J. Stroud at pick 20 when ADP 40+ = TOO EARLY
+
+5. **Performance Optimization** ✅
+   - Added timing logs throughout analyze_draft_question()
+   - Pre-initialize agents on server startup
+   - Expected improvement: 60s → <10s for first query
+
+#### Code Changes
+```python
+# dev_server.py - Pre-initialization
+if hasattr(draft_crew, 'agents') and draft_crew.agents is None:
+    draft_crew.agents = draft_crew._create_agents()
+    print("✅ Agents pre-initialized - first query will be MUCH faster!")
+
+# draft_crew.py - ADP awareness
+KEY RULES:
+4. DO NOT REACH: Only recommend players within 10-15 picks of their ADP/rank
+• Good value = player available at or after their ADP
+• Acceptable reach = within 10-15 picks of ADP (for high-priority needs only)
+```
+
+#### Known Issues
+- Proactive window not appearing in UI (needs investigation)
+- Server requires forceful kill: `pkill -f "python3 dev_server.py"`
+
+### Ready for Next Mock Draft Test
+- Agents pre-initialized on startup ✅
+- ADP reach prevention active ✅
+- All position tracking fixes in place ✅
+- Performance monitoring enabled ✅
+
+---
+
+## Emergency Session - Draft Day Evening
+**Date**: August 14, 2025 (Day 10 - Phase 1)
+**Time**: Evening, hours before live draft
+**Critical Issue**: Agent not accessing FantasyPros data correctly
+
+### 🚨 CRITICAL ISSUES DISCOVERED
+
+#### 1. MCP Server Not Running
+- **Issue**: FantasyPros MCP server wasn't configured/running
+- **Impact**: Agent showing "Player not found in projections database" 
+- **User Quote**: "NOOOO - stop saying thats working, thats not the right live FantasyPros data"
+
+#### 2. Wrong Year Data
+- **Issue**: Initially using 2024 data, not 2025
+- **User Correction**: "The year is 2025. Today is August 14 2025, the day of my draft!"
+- **Impact**: Ashton Jeanty (2025 Raiders rookie) not recognized
+
+#### 3. Syntax Errors in MCP Integration
+- **File**: `/mcp_servers/fantasypros_mcp.py` line 822
+- **Error**: Invalid conditional decorator syntax
+- **Fix**: Changed from `@mcp.tool() if HAS_MCP else tool_decorator` to `@tool_decorator`
+
+#### 4. Missing Dependencies
+- **Missing**: aiohttp, beautifulsoup4
+- **Fix**: `pip3 install aiohttp beautifulsoup4`
+
+#### 5. Field Mapping Issues
+- **Problem**: Wrong field names for FantasyPros data
+- **Fix**: Updated to use `rank_ecr`, `player_position_id`, `player_team_id`
+
+#### 6. Cache Issues
+- **Problem**: 4-day old cache from August 10
+- **Solution**: Cleared cache to force fresh August 14 data
+
+#### 7. NoneType Error in _parse_and_store_adps
+- **Error**: `'NoneType' object has no attribute 'split'`
+- **Fix**: Added None checks before processing rankings data
+
+### ✅ FIXES IMPLEMENTED
+
+1. **Cache Management**:
+   - Added smart cache detection for multiple file names
+   - 24-hour cache TTL for draft day freshness
+   - Fallback to Sleeper if FantasyPros unavailable
+
+2. **Player Name Extraction**:
+   - Fixed to exclude common words ("They", "Round", "Draft")
+   - Prevents treating non-player words as player names
+
+3. **Agent Instructions Enhanced**:
+   - Explicit instructions to use ACTUAL rank numbers
+   - Emphasis on FantasyPros rankings over training data
+   - Clear guidance to mention ranks in recommendations
+
+4. **Data Access Fixed**:
+   - Direct FantasyPros API integration
+   - Proper SUPERFLEX (OP) rankings
+   - Correct field mappings for 2025 data
+
+### VERIFICATION
+
+**Before Fix**:
+- Burrow vs Hurts: "Player not found"
+- Drake London vs Garrett Wilson: Generic advice, no rankings
+
+**After Fix**:
+- ✅ Hurts (QB4) correctly ranked above Burrow (QB5) 
+- ✅ Drake London (Rank #31, WR9) vs Garrett Wilson (Rank #49, WR15)
+- ✅ Chase Brown vs Jonathan Taylor: Working with data
+- ✅ Cam Ward vs Trevor Lawrence: Working correctly
+
+### USER FEEDBACK
+- "Ok those rankings for superflex are correct. Now just to confirm the agent uses it"
+- "Ok I asked Chase Brown vs Jonathan Taylor and it actually worked with the data"
+- "It worked for Cam Ward vs Trevor Lawrence too. I think were good actually"
+
+### CRITICAL LEARNINGS
+1. Always verify MCP servers are running before draft
+2. Cache management crucial for live data
+3. Field mappings must match API response structure
+4. Year context (2025) must be explicit
+5. Keeper logic preserved throughout fixes
+
+---
+
+## Phase 2 - Day 1: Yahoo Fantasy Integration
+**Date**: August 14, 2025  
+**Goal**: Build Yahoo Fantasy agents using LangGraph for <3s response times
+
+### Completed Today
+
+#### 1. Architecture Setup ✅
+- Created separate `yahoo_agents/` directory to isolate from working Sleeper/CrewAI system
+- Installed LangGraph with Python 3.13 (resolved Python version issues)
+- No interference with existing CrewAI draft system
+
+#### 2. Yahoo Snake Agent (League 2 - Full PPR) ✅
+- **File**: `yahoo_agents/yahoo_snake_agent.py`
+- **Scoring**: Full PPR with 6PT passing TDs
+- **Key Features**:
+  - QB boost (15%) for 6PT passing TDs
+  - WR premium (25% boost) for Full PPR
+  - Pass-catching RB identification and boosting
+  - Return specialist bonuses (Tyreek Hill, Deebo Samuel, etc.)
+  - Yardage threshold bonuses (300/350/400 passing, etc.)
+- **Performance**: <3s target with parallel analysis
+
+#### 3. Yahoo Auction Agent (League 3 - Half PPR) ✅
+- **File**: `yahoo_agents/yahoo_auction_agent.py`
+- **Budget**: $200 auction format
+- **Scoring**: Half PPR with 4PT passing TDs
+- **Key Features**:
+  - Stars & Scrubs strategy phases
+  - QB devaluation (20%) for 4PT passing TDs
+  - Real-time bid recommendations
+  - Market inflation tracking
+  - Opponent budget monitoring
+  - NO KICKER position handling
+
+#### 4. FantasyPros MCP Integration ✅
+- **File**: `yahoo_agents/fantasypros_mcp_client.py`
+- Uses existing MCP server instead of direct API calls
+- Supports PPR and HALF scoring types via MCP tools
+- League-specific adjustments applied on top of base rankings
+- Caching to minimize MCP calls
+
+### Technical Decisions
+
+1. **LangGraph over CrewAI**: 2-3x faster with parallel execution
+2. **Separate Directory**: Prevents any risk to working Sleeper system
+3. **MCP Server Usage**: Leverages existing infrastructure
+4. **League-Specific Logic**: Applied as adjustment layer on top of base rankings
+
+### Next Steps
+- [ ] Add streaming response support for real-time updates
+- [ ] Create integration tests for both agents
+- [ ] Connect to Yahoo OAuth for live draft monitoring
+- [ ] Test with real draft scenarios before Aug 19 (League 2) and Aug 24 (League 3)

@@ -245,50 +245,96 @@ async def get_live_rankings_data(position: str = "OP", limit: int = 50) -> str:
         Exception: If MCP server connection fails or data retrieval errors
     """
     try:
-        # Create async connection to MCP server for live data
-        async with MCPClient() as mcp:
-            # Fetch current rankings from FantasyPros via MCP
-            rankings = await mcp.get_rankings(limit=limit)
+        # Check for cached data from today first
+        import time
+        from pathlib import Path
+        import json
+        
+        # Try different cache file names (with and without limit in filename)
+        cache_files = [
+            Path(__file__).parent.parent / "data" / f"fantasypros_rankings_NFL_OP_HALF_{limit}.json",
+            Path(__file__).parent.parent / "data" / "fantasypros_rankings_NFL_OP_HALF_50.json",
+            Path(__file__).parent.parent / "data" / "fantasypros_rankings_NFL_OP_HALF_200.json"
+        ]
+        
+        rankings = None
+        for cache_file in cache_files:
+            if cache_file.exists():
+                cache_age = time.time() - cache_file.stat().st_mtime
+                # Use cache if it's from today (less than 24 hours old)
+                if cache_age < 86400:  # 24 hours
+                    with open(cache_file, 'r') as f:
+                        cached_data = json.load(f)
+                        print(f"✅ Using cached FantasyPros data ({cache_file.name}, {cache_age/3600:.1f}h old)")
+                        rankings = cached_data
+                        break
+        
+        if not rankings:
+            # No cache or cache is old, fetch fresh data
+            from core.official_fantasypros import OfficialFantasyProsMCP
             
-            # Filter by position if user requested specific position
-            if position not in ["ALL", "OP"]:  # OP is SUPERFLEX, don't filter
-                filtered_players = []
-                for player in rankings.get('players', []):
-                    # Match exact position (case-sensitive)
-                    if player.get('position') == position:
-                        filtered_players.append(player)
-                # Replace full rankings with filtered subset
-                rankings['players'] = filtered_players[:limit]
-            
-            # Handle different response formats
-            players_list = []
-            if isinstance(rankings, list):
-                # Direct list format
-                players_list = rankings
-            elif isinstance(rankings, dict) and 'players' in rankings:
-                # Dict with players key
-                players_list = rankings['players']
+            client = OfficialFantasyProsMCP()
+            if await client.is_server_available():
+                print("🔄 Cache expired, fetching fresh FantasyPros rankings")
+                rankings = await client.get_rankings(
+                    sport="NFL",
+                    position=position if position != "ALL" else "OP",  # Use OP for SUPERFLEX
+                    scoring="HALF",
+                    limit=limit
+                )
             else:
-                return f"Error: Unexpected rankings format: {type(rankings)}"
+                # Fall back to MCP if API not available
+                async with MCPClient() as mcp:
+                    # Fetch current rankings from FantasyPros via MCP
+                    rankings = await mcp.get_rankings(limit=limit)
+        
+        # If still no rankings after all attempts, return fallback
+        if not rankings:
+            print("❌ Failed to get rankings from any source")
+            return get_sync_rankings_fallback()
             
-            # Format rankings data for agent consumption
-            # Create human-readable list of players with key metrics
-            players_data = []
-            for player in players_list[:limit]:
-                if isinstance(player, dict):
-                    # Extract player information with fallbacks for missing data
-                    name = player.get('name', player.get('player_name', 'Unknown'))
-                    pos = player.get('position', player.get('pos', 'Unknown'))
-                    rank = player.get('rank', player.get('overall_rank', 'N/A'))
-                    adp = player.get('adp', 'N/A')
-                    team = player.get('team', 'N/A')
-                    
-                    # Format as readable string for agent to parse
-                    player_info = f"{name} ({pos}) - Rank: {rank}, ADP: {adp}, Team: {team}"
-                    players_data.append(player_info)
-            
-            # Return formatted string with header for agent context
-            return f"LIVE RANKINGS ({position}):\n" + "\n".join(players_data)
+        # Filter by position if user requested specific position
+        if position not in ["ALL", "OP"]:  # OP is SUPERFLEX, don't filter
+            filtered_players = []
+            for player in rankings.get('players', []):
+                # Match exact position (case-sensitive)
+                if player.get('position') == position:
+                    filtered_players.append(player)
+            # Replace full rankings with filtered subset
+            rankings['players'] = filtered_players[:limit]
+        
+        # Handle different response formats
+        players_list = []
+        if isinstance(rankings, list):
+            # Direct list format
+            players_list = rankings
+        elif isinstance(rankings, dict) and 'players' in rankings:
+            # Dict with players key
+            players_list = rankings['players']
+        else:
+            return f"Error: Unexpected rankings format: {type(rankings)}"
+        
+        # Format rankings data for agent consumption
+        # Create human-readable list of players with key metrics
+        players_data = []
+        for player in players_list[:limit]:
+            if isinstance(player, dict):
+                # Extract player information with correct FantasyPros field names
+                name = player.get('player_name', player.get('name', 'Unknown'))
+                pos = player.get('player_position_id', player.get('player_positions', player.get('position', 'Unknown')))
+                rank = player.get('rank_ecr', player.get('rank', 'N/A'))
+                pos_rank = player.get('pos_rank', '')
+                team = player.get('player_team_id', player.get('team', 'N/A'))
+                tier = player.get('tier', '')
+                
+                # Format as readable string for agent to parse
+                player_info = f"{name} ({pos}) - Rank: {rank}, Pos: {pos_rank}, Team: {team}"
+                if tier:
+                    player_info += f", Tier: {tier}"
+                players_data.append(player_info)
+        
+        # Return formatted string with header for agent context
+        return f"LIVE RANKINGS ({position}):\n" + "\n".join(players_data)
             
     except Exception as e:
         print(f"❌ MCP rankings failed: {e}")
@@ -735,7 +781,7 @@ class FantasyDraftCrew:
                 self.session_context['recent_picks'] = draft_picks[-6:] if len(draft_picks) >= 6 else draft_picks
                 
                 # Parse ADPs if not already done
-                if not self.session_context.get('player_adps'):
+                if not self.session_context.get('player_adps') and raw_live_data:
                     self._parse_and_store_adps(raw_live_data)
                 
                 # Detect value picks
@@ -970,17 +1016,36 @@ Based on your roster needs and available players, consider drafting from the lis
     
     def _extract_player_names(self, question: str) -> List[str]:
         """Extract likely player names from question"""
-        # Simple name extraction - look for capitalized words
+        # Common words to exclude that aren't player names
+        exclude_words = {
+            'Should', 'Who', 'What', 'When', 'Where', 'Why', 'How', 'The', 'They',
+            'Draft', 'Round', 'Pick', 'Team', 'Week', 'Start', 'Bench', 'Trade',
+            'Keep', 'Drop', 'Add', 'Which', 'Between', 'Compare', 'Versus',
+            'Looking', 'Need', 'Want', 'Have', 'Think', 'Consider', 'Help',
+            'Best', 'Top', 'Good', 'Great', 'Elite', 'Value', 'Sleeper',
+            'Rankings', 'Projections', 'Points', 'Score', 'Season', 'Year'
+        }
+        
         words = question.split()
         names = []
         
         for i, word in enumerate(words):
-            if word[0].isupper() and len(word) > 2:
+            # Clean word of punctuation
+            clean_word = word.strip('?,.')
+            
+            if clean_word and clean_word[0].isupper() and len(clean_word) > 2:
+                # Skip if it's a common non-name word
+                if clean_word in exclude_words:
+                    continue
+                    
                 # Check if next word is also capitalized (likely full name)
-                if i + 1 < len(words) and words[i + 1][0].isupper():
-                    names.append(f"{word} {words[i + 1]}")
-                elif word not in ['Should', 'Who', 'What', 'The', 'Josh', 'Allen'] and len(word) > 3:
-                    names.append(word)
+                if i + 1 < len(words):
+                    next_word = words[i + 1].strip('?,.')
+                    if next_word and next_word[0].isupper() and next_word not in exclude_words:
+                        full_name = f"{clean_word} {next_word}"
+                        names.append(full_name)
+                        # Skip the next word since we've used it
+                        continue
         
         return list(set(names))  # Remove duplicates
     
@@ -1010,22 +1075,23 @@ Based on your roster needs and available players, consider drafting from the lis
             
             Current context: {context_str}
             
-            LIVE CURRENT DATA:
+            LIVE CURRENT DATA FROM FANTASYPROS (USE THESE RANKINGS!):
             {live_rankings}
             
             {live_projections}
             
             Your tasks:
-            1. Use the LIVE DATA provided above (not your training data)
-            2. Identify what specific players or positions are relevant to the question
-            3. Extract relevant rankings and projections from the live data
-            4. Note any league-specific settings that matter
-            5. Organize the current data for analysis
+            1. CRITICAL: Use the LIVE FANTASYPROS RANKINGS provided above - these are the ACTUAL current rankings
+            2. Find the specific players mentioned in the question in the live data
+            3. ALWAYS REPORT THE ACTUAL RANK NUMBER from the live data (e.g., "Rank: 31" or "Rank: 49")
+            4. Extract exact rankings, positions, and tiers from the live data
+            5. Note: Lower rank number = better player (Rank 31 is better than Rank 49)
             
-            Focus on factual data collection using the live rankings provided.
+            You MUST use the rankings provided above. Do NOT use training data or make up rankings.
+            Report the EXACT rank numbers you find in the data.
             """,
             agent=self.agents["data_collector"],
-            expected_output="Organized data summary using live rankings and projections data"
+            expected_output="Exact rankings from FantasyPros data with specific rank numbers"
         )
         
         # Task 2: Player Analysis  
@@ -1068,15 +1134,17 @@ Based on your roster needs and available players, consider drafting from the lis
             Provide final recommendations for: "{question}"
             
             Synthesize all previous work to:
-            1. Give clear, actionable recommendations
-            2. Explain the reasoning behind each suggestion
-            3. Address the original question directly
-            4. Provide 2-3 specific options with pros/cons
+            1. BASE YOUR RECOMMENDATION ON THE ACTUAL FANTASYPROS RANKINGS
+            2. Always mention the player's actual rank (e.g., "ranked #31 overall" or "WR9")
+            3. If recommending a lower-ranked player over a higher-ranked one, explain why
+            4. Give clear, actionable recommendations with rank-based reasoning
+            5. Provide your primary pick and a backup option with their ranks
             
-            This is the final output the user will see - make it clear and confident.
+            Remember: Lower rank number = better player. Use the actual rank numbers from the data.
+            This is the final output the user will see - make it clear and include rankings.
             """,
             agent=self.agents["advisor"],
-            expected_output="Clear, actionable draft recommendations with reasoning and multiple options"
+            expected_output="Clear recommendation with FantasyPros rankings explicitly mentioned"
         )
         
         return [data_task, analysis_task, strategy_task, recommendation_task]
@@ -1855,6 +1923,10 @@ Based on your roster needs and available players, consider drafting from the lis
         Args:
             rankings_data: Raw rankings text with ADP values
         """
+        if not rankings_data:
+            print("⚠️ No rankings data to parse for ADPs")
+            return
+            
         adps = {}
         lines = rankings_data.split('\n')
         

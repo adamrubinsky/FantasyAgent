@@ -26,6 +26,7 @@ try:
     from mcp import FastMCP
     mcp = FastMCP("FantasyPros Fantasy Football Server")
     HAS_MCP = True
+    tool_decorator = mcp.tool()
 except ImportError:
     # Local development mode - no MCP decorators
     HAS_MCP = False
@@ -819,7 +820,7 @@ class FantasyProsCacheManager:
 cache_manager = FantasyProsCacheManager()
 
 
-@mcp.tool() if HAS_MCP else tool_decorator
+@tool_decorator
 def get_rankings(
     scoring_format: str = "half_ppr",
     league_type: str = "superflex",
@@ -964,7 +965,7 @@ def get_rankings(
     return response
 
 
-@mcp.tool() if HAS_MCP else tool_decorator
+@tool_decorator
 def get_projections(
     player_names: List[str],
     week: str = "season",
@@ -999,7 +1000,7 @@ def get_projections(
     return projections
 
 
-@mcp.tool() if HAS_MCP else tool_decorator
+@tool_decorator
 def get_adp_analysis(
     current_pick: int,
     available_players: List[str],
@@ -1070,7 +1071,7 @@ def get_adp_analysis(
     }
 
 
-@mcp.tool() if HAS_MCP else tool_decorator
+@tool_decorator
 def get_tier_breaks(
     position: str,
     scoring_format: str = "half_ppr",
@@ -1124,7 +1125,7 @@ def get_tier_breaks(
     }
 
 
-@mcp.tool() if HAS_MCP else tool_decorator
+@tool_decorator
 def get_superflex_strategy() -> Dict[str, Any]:
     """
     Get strategic advice specifically for SUPERFLEX leagues
