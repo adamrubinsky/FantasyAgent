@@ -86,8 +86,11 @@ class ServerState:
         """Get or create Yahoo Snake agent"""
         if self.yahoo_snake_agent is None:
             try:
-                from yahoo_agents.agents.yahoo_snake_agent import YahooSnakeAgent
-                self.yahoo_snake_agent = YahooSnakeAgent()
+                from yahoo_agents.agents.yahoo_snake_agent import YahooSnakeDraftAgent
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                if not api_key:
+                    raise ValueError("ANTHROPIC_API_KEY not found")
+                self.yahoo_snake_agent = YahooSnakeDraftAgent(anthropic_api_key=api_key)
                 logger.info("Yahoo Snake agent initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Yahoo Snake agent: {e}")
@@ -103,7 +106,10 @@ class ServerState:
         if self.yahoo_auction_agent is None:
             try:
                 from yahoo_agents.agents.yahoo_auction_agent import YahooAuctionAgent
-                self.yahoo_auction_agent = YahooAuctionAgent()
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                if not api_key:
+                    raise ValueError("ANTHROPIC_API_KEY not found")
+                self.yahoo_auction_agent = YahooAuctionAgent(anthropic_api_key=api_key)
                 logger.info("Yahoo Auction agent initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Yahoo Auction agent: {e}")
@@ -181,17 +187,74 @@ async def draft_query(query: DraftQuery):
             
         elif query.platform == "yahoo-snake":
             agent = state.get_yahoo_snake_agent()
-            result = await agent.get_recommendation(
-                query=query.query,
-                context=query.context or {}
-            )
+            # Yahoo agents expect context with query inside
+            context = query.context or {}
+            context["query"] = query.query
+            result = await agent.get_recommendation(context)
+            
+            # Format Yahoo Snake response for natural language display
+            if isinstance(result, dict):
+                recs = result.get('recommendations', [])
+                if recs:
+                    formatted = f"Based on your Full PPR league settings, here are my top recommendations:\n\n"
+                    for i, rec in enumerate(recs, 1):
+                        formatted += f"**{i}. {rec['name']} ({rec['position']})** - {rec['reason']}\n\n"
+                    
+                    if result.get('strategy_notes'):
+                        formatted += f"📊 **Strategy Note:** {result['strategy_notes']}\n"
+                    
+                    if result.get('response_ms'):
+                        formatted += f"\n⚡ Response time: {result['response_ms']}ms"
+                else:
+                    formatted = "I need more context to provide recommendations. Please specify your round, pick position, and current roster."
+                result = formatted
             
         elif query.platform == "yahoo-auction":
             agent = state.get_yahoo_auction_agent()
-            result = await agent.get_recommendation(
-                query=query.query,
-                context=query.context or {}
-            )
+            # Yahoo Auction agent uses get_bid_recommendation
+            context = query.context or {}
+            context["query"] = query.query
+            result = await agent.get_bid_recommendation(context)
+            
+            # Format Yahoo Auction response for natural language display
+            if isinstance(result, dict):
+                formatted = ""
+                
+                # Handle bid recommendations
+                if result.get('bid'):
+                    bid = result['bid']
+                    if bid.get('amount'):
+                        formatted = f"I recommend bidding **{bid['amount']}** on this player"
+                        if bid.get('max'):
+                            formatted += f" (max: {bid['max']})"
+                        if bid.get('reason'):
+                            formatted += f". {bid['reason']}"
+                        formatted += "\n\n"
+                
+                # Handle nomination suggestions
+                if result.get('nomination'):
+                    nom = result['nomination']
+                    if nom.get('type') == 'DRAIN':
+                        formatted += f"💡 **Nomination Strategy:** I suggest nominating a {', '.join(nom.get('positions', ['player']))} "
+                        formatted += f"in the {nom.get('price_range', '$20-30')} range to drain opponent budgets. "
+                        formatted += f"{nom.get('reason', '')}\n\n"
+                    elif nom.get('type') == 'VALUE':
+                        formatted += f"🎯 **Value Nomination:** Target {', '.join(nom.get('positions', ['players']))} "
+                        formatted += f"in the {nom.get('price_range', '$10-20')} range. "
+                        formatted += f"{nom.get('reason', '')}\n\n"
+                    else:
+                        formatted += f"Consider nominating {', '.join(nom.get('positions', ['players']))} "
+                        formatted += f"for {nom.get('price_range', 'market value')}. "
+                        formatted += f"{nom.get('reason', '')}\n\n"
+                
+                # Add strategy context
+                if result.get('phase'):
+                    formatted += f"📈 Current auction phase: **{result['phase']}**\n"
+                
+                if not formatted:
+                    formatted = "Please provide more context about the auction (current player, your budget, roster needs) for specific recommendations."
+                
+                result = formatted
         else:
             result = "Unknown platform"
         
@@ -235,22 +298,27 @@ async def websocket_endpoint(websocket: WebSocket):
 async def get_rankings(platform: str):
     """Get rankings for specific platform"""
     try:
-        from core.official_fantasypros import OfficialFantasyProsClient
+        from core.official_fantasypros import OfficialFantasyProsMCP
         
-        # Platform-specific settings
+        # Platform-specific settings - CRITICAL: Only Sleeper uses OP for SUPERFLEX!
         settings = {
-            "sleeper": {"position": "OP", "scoring": "HALF"},  # SUPERFLEX
-            "yahoo-snake": {"position": "ALL", "scoring": "PPR"},  # Full PPR
-            "yahoo-auction": {"position": "ALL", "scoring": "HALF"}  # Half PPR
+            "sleeper": {"position": "OP", "scoring": "HALF"},      # SUPERFLEX rankings
+            "yahoo-snake": {"position": "ALL", "scoring": "PPR"},   # Standard Full PPR (NOT SUPERFLEX)
+            "yahoo-auction": {"position": "ALL", "scoring": "HALF"} # Standard Half PPR (NOT SUPERFLEX)
         }
         
         platform_settings = settings.get(platform, {"position": "ALL", "scoring": "HALF"})
         
-        client = OfficialFantasyProsClient()
-        rankings = client.get_rankings_sync(
+        client = OfficialFantasyProsMCP()
+        # Use async method to get rankings (returns a list directly)
+        rankings = await client.get_rankings(
             position=platform_settings["position"],
-            scoring=platform_settings["scoring"]
+            scoring=platform_settings["scoring"],
+            limit=500  # Get top 500 players for UI
         )
+        # Rankings is already a list
+        if not rankings:
+            rankings = []
         
         return JSONResponse(rankings if rankings else [])
         

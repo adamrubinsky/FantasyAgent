@@ -18,7 +18,7 @@ import json
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint import MemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 
 # LangChain imports
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -31,7 +31,8 @@ from langchain_core.prompts import ChatPromptTemplate
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-from data_providers import get_fantasypros_mcp_client, AuctionValueCalculator
+from data_providers.direct_fantasypros import get_direct_fantasypros_client
+from data_providers import AuctionValueCalculator
 
 
 # League 3 specific constants
@@ -128,7 +129,7 @@ class YahooAuctionAgent:
         )
         
         # FantasyPros MCP client
-        self.fp_client = get_fantasypros_mcp_client()
+        self.fp_client = get_direct_fantasypros_client()
         
         # Cache for calculated values
         self.calculated_values_cache = None
@@ -389,6 +390,10 @@ class YahooAuctionAgent:
     
     async def get_bid_recommendation(self, context: Dict) -> Dict:
         """Get real-time bidding recommendation"""
+        # Parse the query to understand what user is asking
+        query_text = context.get("query", "").lower()
+        
+        # Initialize state with defaults
         state = AuctionState(
             remaining_budget=context.get("remaining_budget", 200),
             spent_budget=context.get("spent_budget", 0),
@@ -411,7 +416,63 @@ class YahooAuctionAgent:
             response_time_ms=None
         )
         
-        result = await self.app.ainvoke(state)
+        # Parse query for specific auction requests
+        if "rb or wr" in query_text or "wr or rb" in query_text:
+            # User asking about position to nominate
+            state["nomination_suggestion"] = {
+                "type": "VALUE",
+                "positions": ["RB", "WR"],
+                "price_range": "$15-25",
+                "reason": "In Half PPR, both RBs and WRs have value. Target whichever position has better value at current market prices."
+            }
+        elif "qb" in query_text and "nominate" in query_text:
+            # User asking about nominating QBs
+            state["nomination_suggestion"] = {
+                "type": "DRAIN",
+                "positions": ["QB"],
+                "price_range": "$20-30",
+                "reason": "Nominate expensive QBs to drain budgets. With 4PT passing TDs, QBs are overvalued by others."
+            }
+        elif "cheap" in query_text or "value" in query_text or "$1" in query_text:
+            # User asking about cheap players
+            state["nomination_suggestion"] = {
+                "type": "SLEEPER",
+                "positions": ["WR", "RB"],
+                "price_range": "$1-3",
+                "reason": "Target high-upside bench players and handcuffs in the $1-3 range."
+            }
+        elif "stars" in query_text or "stud" in query_text:
+            # User asking about stars strategy
+            state["nomination_suggestion"] = {
+                "type": "TARGET",
+                "positions": ["RB", "WR"],
+                "price_range": "$50-70",
+                "reason": "Stars & Scrubs: Spend big on 2-3 elite players, then fill roster with $1 players."
+            }
+        elif "te" in query_text:
+            # User asking about TEs
+            state["nomination_suggestion"] = {
+                "type": "VALUE",
+                "positions": ["TE"],
+                "price_range": "$8-15",
+                "reason": "In Half PPR, target mid-tier TEs for value. Elite TEs are often overpriced."
+            }
+        
+        # Add config with thread_id for checkpointer
+        config = {"configurable": {"thread_id": "yahoo-auction-draft"}}
+        result = await self.app.ainvoke(state, config)
+        
+        # Override with query-specific suggestions if we parsed something
+        if state.get("nomination_suggestion") and not result.get("player_up"):
+            result["nomination_suggestion"] = state["nomination_suggestion"]
+        
+        # Add query-specific strategy notes
+        if "rb or wr" in query_text:
+            result["strategy_notes"] = "Half PPR Nomination: Target the position with better value. RBs for floor, WRs for ceiling."
+        elif "qb" in query_text:
+            result["strategy_notes"] = "4PT Passing TDs make QBs less valuable. Never spend more than $15 on a QB."
+        elif "cheap" in query_text:
+            result["strategy_notes"] = "End game strategy: Target high-upside rookies and backup RBs for $1."
         
         return {
             "bid": result.get("bid_recommendation", {}),

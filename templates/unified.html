@@ -237,9 +237,68 @@
                             </button>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Right Column: Available Players then Proactive Analysis -->
+                <div class="space-y-6">
+                    <!-- Available Players -->
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="text-lg font-semibold mb-3">
+                            <i class="fas fa-list mr-2"></i>Top Available Players
+                        </h3>
+                        
+                        <!-- Scoring Type Display -->
+                        <div class="mb-2 text-sm text-gray-600">
+                            <span v-if="selectedPlatform === 'sleeper'">
+                                <i class="fas fa-info-circle"></i> SUPERFLEX (Half-PPR)
+                            </span>
+                            <span v-else-if="selectedPlatform === 'yahoo-snake'">
+                                <i class="fas fa-info-circle"></i> Standard (Full PPR)
+                            </span>
+                            <span v-else-if="selectedPlatform === 'yahoo-auction'">
+                                <i class="fas fa-info-circle"></i> Standard (Half-PPR)
+                            </span>
+                        </div>
+                        
+                        <!-- Position Filter -->
+                        <div class="mb-3">
+                            <select v-model="positionFilter" 
+                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="ALL">All Positions</option>
+                                <option value="QB">Quarterbacks</option>
+                                <option value="RB">Running Backs</option>
+                                <option value="WR">Wide Receivers</option>
+                                <option value="TE">Tight Ends</option>
+                                <option v-if="selectedPlatform === 'sleeper'" value="OP">SUPERFLEX (OP)</option>
+                                <option value="DST">Defense</option>
+                                <option value="K">Kickers</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Players List -->
+                        <div class="space-y-2 max-h-96 overflow-y-auto">
+                            <div v-for="player in filteredPlayers" :key="player.id"
+                                 @click="askAboutPlayer(player)"
+                                 class="cursor-pointer hover:bg-gray-50 p-2 rounded border">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <div class="font-medium">{{ player.name }}</div>
+                                        <div class="text-sm text-gray-600">
+                                            {{ player.position }} - {{ player.team }}
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-sm font-semibold">#{{ player.rank }}</div>
+                                        <div v-if="selectedPlatform === 'yahoo-auction'" 
+                                             class="text-sm text-green-600">${{ player.value }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <!-- Proactive Recommendations -->
-                    <div class="bg-white rounded-lg shadow p-4 mt-4">
+                    <!-- Proactive Recommendations (moved from middle column) -->
+                    <div class="bg-white rounded-lg shadow p-4">
                         <h4 class="font-semibold mb-3 flex items-center justify-between">
                             <span>
                                 <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
@@ -273,51 +332,6 @@
                             {{ selectedPlatform === 'sleeper' ? 
                                'Connect to draft for proactive recommendations' : 
                                'Proactive analysis coming soon for Yahoo' }}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Right Column: Available Players -->
-                <div class="space-y-6">
-                    <!-- Available Players -->
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h3 class="text-lg font-semibold mb-3">
-                            <i class="fas fa-list mr-2"></i>Top Available Players
-                        </h3>
-                        
-                        <!-- Position Filter -->
-                        <div class="mb-3">
-                            <select v-model="positionFilter" 
-                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
-                                <option value="ALL">All Positions</option>
-                                <option value="QB">Quarterbacks</option>
-                                <option value="RB">Running Backs</option>
-                                <option value="WR">Wide Receivers</option>
-                                <option value="TE">Tight Ends</option>
-                                <option value="DST">Defense</option>
-                                <option value="K">Kickers</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Players List -->
-                        <div class="space-y-2 max-h-96 overflow-y-auto">
-                            <div v-for="player in filteredPlayers" :key="player.id"
-                                 @click="askAboutPlayer(player)"
-                                 class="cursor-pointer hover:bg-gray-50 p-2 rounded border">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <div class="font-medium">{{ player.name }}</div>
-                                        <div class="text-sm text-gray-600">
-                                            {{ player.position }} - {{ player.team }}
-                                        </div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-sm font-semibold">#{{ player.rank }}</div>
-                                        <div v-if="selectedPlatform === 'yahoo-auction'" 
-                                             class="text-sm text-green-600">${{ player.value }}</div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                     
@@ -543,21 +557,30 @@
                 },
                 
                 async loadInitialData() {
-                    // Load rankings for the selected platform
+                    // Load rankings for the selected platform with cache bust
                     try {
-                        const response = await fetch(`/api/rankings/${this.selectedPlatform}`);
+                        // Add timestamp to prevent caching
+                        const response = await fetch(`/api/rankings/${this.selectedPlatform}?t=${Date.now()}`);
                         const rankings = await response.json();
                         
-                        // Transform to player format
+                        console.log(`Loaded ${rankings.length} players for ${this.selectedPlatform}`);
+                        
+                        // Clear existing players
+                        this.availablePlayers = [];
+                        
+                        // Transform to player format - handle both field naming conventions
                         this.availablePlayers = rankings.slice(0, 200).map(player => ({
-                            id: player.player_id,
-                            name: player.player_name,
-                            position: player.player_position_id,
-                            team: player.player_team_id,
-                            rank: player.rank_ecr,
+                            id: player.player_id || player.id,
+                            name: player.player_name || player.name,
+                            position: player.player_position_id || player.position,
+                            team: player.player_team_id || player.team,
+                            rank: player.rank_ecr || player.rank || 999,
                             value: this.selectedPlatform === 'yahoo-auction' ? 
-                                   this.calculateAuctionValue(player.rank_ecr) : null
+                                   player.auction_value || this.calculateAuctionValue(player.rank_ecr || player.rank || 999) : null
                         }));
+                        
+                        // Log first few players to verify correct rankings
+                        console.log('Top 3 players:', this.availablePlayers.slice(0, 3).map(p => `${p.name} (${p.position})`));
                     } catch (error) {
                         console.error('Failed to load rankings:', error);
                     }
