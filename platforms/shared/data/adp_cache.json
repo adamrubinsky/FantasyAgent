@@ -1,0 +1,287 @@
+{
+  "Saquon Barkley": {
+    "adp": 1.2,
+    "trend": "rising",
+    "tier": 1
+  },
+  "Josh Allen": {
+    "adp": 2.1,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Lamar Jackson": {
+    "adp": 3.5,
+    "trend": "stable",
+    "tier": 1
+  },
+  "CeeDee Lamb": {
+    "adp": 2.8,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Justin Jefferson": {
+    "adp": 3.2,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Patrick Mahomes": {
+    "adp": 6.1,
+    "trend": "falling",
+    "tier": 1
+  },
+  "Tyreek Hill": {
+    "adp": 4.5,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Jahmyr Gibbs": {
+    "adp": 7.8,
+    "trend": "rising",
+    "tier": 1
+  },
+  "Bijan Robinson": {
+    "adp": 8.2,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Dak Prescott": {
+    "adp": 10.5,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Ja'Marr Chase": {
+    "adp": 11.3,
+    "trend": "stable",
+    "tier": 1
+  },
+  "Amon-Ra St. Brown": {
+    "adp": 12.1,
+    "trend": "rising",
+    "tier": 1
+  },
+  "Puka Nacua": {
+    "adp": 13.7,
+    "trend": "rising",
+    "tier": 2
+  },
+  "Breece Hall": {
+    "adp": 14.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Jonathan Taylor": {
+    "adp": 15.8,
+    "trend": "falling",
+    "tier": 2
+  },
+  "Christian McCaffrey": {
+    "adp": 16.4,
+    "trend": "falling",
+    "tier": 2
+  },
+  "Travis Kelce": {
+    "adp": 17.1,
+    "trend": "falling",
+    "tier": 2
+  },
+  "Anthony Richardson": {
+    "adp": 18.3,
+    "trend": "rising",
+    "tier": 2
+  },
+  "Cooper Kupp": {
+    "adp": 19.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Stefon Diggs": {
+    "adp": 20.1,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Derrick Henry": {
+    "adp": 21.5,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Kyler Murray": {
+    "adp": 22.3,
+    "trend": "stable",
+    "tier": 2
+  },
+  "A.J. Brown": {
+    "adp": 23.1,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Mike Evans": {
+    "adp": 24.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Tee Higgins": {
+    "adp": 25.4,
+    "trend": "stable",
+    "tier": 2
+  },
+  "DK Metcalf": {
+    "adp": 26.1,
+    "trend": "stable",
+    "tier": 2
+  },
+  "DeVonta Smith": {
+    "adp": 27.3,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Keenan Allen": {
+    "adp": 28.7,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Joe Burrow": {
+    "adp": 29.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Amari Cooper": {
+    "adp": 30.1,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Josh Jacobs": {
+    "adp": 31.4,
+    "trend": "rising",
+    "tier": 2
+  },
+  "Isiah Pacheco": {
+    "adp": 32.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Jalen Hurts": {
+    "adp": 33.1,
+    "trend": "falling",
+    "tier": 2
+  },
+  "Mark Andrews": {
+    "adp": 34.3,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Kenneth Walker III": {
+    "adp": 35.2,
+    "trend": "stable",
+    "tier": 2
+  },
+  "Davante Adams": {
+    "adp": 36.1,
+    "trend": "falling",
+    "tier": 2
+  },
+  "Chris Olave": {
+    "adp": 37.4,
+    "trend": "stable",
+    "tier": 3
+  },
+  "Drake London": {
+    "adp": 38.2,
+    "trend": "rising",
+    "tier": 3
+  },
+  "Garrett Wilson": {
+    "adp": 39.1,
+    "trend": "stable",
+    "tier": 3
+  },
+  "DJ Moore": {
+    "adp": 40.2,
+    "trend": "stable",
+    "tier": 3
+  },
+  "Rhamondre Stevenson": {
+    "adp": 41.3,
+    "trend": "stable",
+    "tier": 3
+  },
+  "Tank Dell": {
+    "adp": 42.1,
+    "trend": "rising",
+    "tier": 3
+  },
+  "Jordan Love": {
+    "adp": 43.5,
+    "trend": "rising",
+    "tier": 3
+  },
+  "Caleb Williams": {
+    "adp": 45.2,
+    "trend": "rising",
+    "tier": 3
+  },
+  "George Pickens": {
+    "adp": 46.8,
+    "trend": "rising",
+    "tier": 3
+  },
+  "Marvin Harrison Jr.": {
+    "adp": 48.3,
+    "trend": "rising",
+    "tier": 3
+  },
+  "Sam LaPorta": {
+    "adp": 49.1,
+    "trend": "stable",
+    "tier": 3
+  },
+  "David Montgomery": {
+    "adp": 50.4,
+    "trend": "stable",
+    "tier": 3
+  },
+  "Tua Tagovailoa": {
+    "adp": 65.2,
+    "trend": "stable",
+    "tier": 4
+  },
+  "Aaron Rodgers": {
+    "adp": 72.1,
+    "trend": "falling",
+    "tier": 4
+  },
+  "Geno Smith": {
+    "adp": 85.3,
+    "trend": "stable",
+    "tier": 4
+  },
+  "Russell Wilson": {
+    "adp": 91.7,
+    "trend": "stable",
+    "tier": 4
+  },
+  "Justin Fields": {
+    "adp": 98.2,
+    "trend": "rising",
+    "tier": 4
+  },
+  "Jayden Higgins": {
+    "adp": 159.0,
+    "trend": "rising",
+    "tier": 5
+  },
+  "Rome Odunze": {
+    "adp": 125.3,
+    "trend": "stable",
+    "tier": 5
+  },
+  "Malik Nabers": {
+    "adp": 142.7,
+    "trend": "rising",
+    "tier": 5
+  },
+  "Brock Bowers": {
+    "adp": 156.8,
+    "trend": "rising",
+    "tier": 5
+  }
+}

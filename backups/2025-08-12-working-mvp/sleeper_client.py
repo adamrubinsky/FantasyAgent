@@ -304,7 +304,6 @@ class SleeperClient:
                 if not position or position in relevant_positions:
                     
                     # Step 6: Build clean player info dictionary with key data
-                    years_exp = player_data.get('years_exp', 0)
                     player_info = {
                         'player_id': player_id,  # Unique identifier
                         
@@ -317,54 +316,10 @@ class SleeperClient:
                         # Search rank from Sleeper (1 is best, 999 is unranked)
                         'rank': player_data.get('search_rank', 999),
                         
-                        'years_exp': years_exp,  # NFL experience
+                        'years_exp': player_data.get('years_exp', 0),  # NFL experience
                         'age': player_data.get('age'),  # Current age
                         'injury_status': player_data.get('injury_status')  # Injury info
                     }
-                    
-                    # Calculate base keeper value score (youth + position factors)
-                    # This is the objective score based on player attributes only
-                    # Round-based adjustments will be applied in draft_crew.py
-                    keeper_base_score = 0
-                    
-                    # Experience factor - rookies and young players get huge boost
-                    if years_exp == 0:  # Rookie
-                        keeper_base_score = 100
-                    elif years_exp == 1:  # 2nd year
-                        keeper_base_score = 60
-                    elif years_exp == 2:  # 3rd year
-                        keeper_base_score = 30
-                    elif years_exp == 3:  # 4th year
-                        keeper_base_score = 10
-                    else:  # Veterans
-                        keeper_base_score = 0
-                    
-                    # Position-specific bonuses (additive to experience score)
-                    # QBs in SUPERFLEX have highest keeper value
-                    if 'QB' in relevant_positions:
-                        if years_exp <= 2:
-                            keeper_base_score += 50  # Young QBs are gold in SUPERFLEX
-                        if years_exp == 0:
-                            keeper_base_score += 30  # Extra rookie QB bonus
-                    
-                    # RBs have shorter careers, prioritize very young ones
-                    elif 'RB' in relevant_positions:
-                        if years_exp == 0:
-                            keeper_base_score += 40  # Rookie RBs with opportunity
-                        elif years_exp == 1:
-                            keeper_base_score += 20  # 2nd year RB upside
-                    
-                    # WRs typically take time to develop, 2nd/3rd year breakouts
-                    elif 'WR' in relevant_positions:
-                        if years_exp <= 2:
-                            keeper_base_score += 25
-                    
-                    # TEs take longest to develop, but elite ones are rare
-                    elif 'TE' in relevant_positions:
-                        if years_exp <= 3:
-                            keeper_base_score += 20
-                    
-                    player_info['keeper_base_score'] = keeper_base_score
                     available.append(player_info)
         
         # Step 7: Sort by rank with None value handling

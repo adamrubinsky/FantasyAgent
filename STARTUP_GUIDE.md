@@ -68,17 +68,32 @@ pkill -f "python3 dev_server.py"
 
 ## 🔧 Troubleshooting Common Issues
 
-### Issue: Port 3000 Already in Use
+### Issue: Port 3000 Already in Use (MOST COMMON!)
+
+**Quick Fix - One Line Command:**
+```bash
+# This kills anything on port 3000 and restarts the server
+lsof -ti:3000 | xargs kill -9; sleep 2; python3 dev_server.py
+```
+# All in one restart
+  pkill -f "dev_server.py"; sleep 1; cd /Users/adamrubinsky/VSCode/FantasyAgent &&
+  /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 dev_server.py
+**Alternative One-Liner:**
+```bash
+# Kill all python processes and restart
+pkill -f python3; pkill -f dev_server; sleep 2; python3 dev_server.py
+```
+
+**Manual Method:**
 ```bash
 # Find what's using port 3000
 lsof -i :3000
 
-# Kill the process
+# Kill the process (replace PID with actual number)
 kill -9 <PID>
 
-# Or change the port in dev_server.py (line 479)
-# Change: port=3000
-# To: port=3001
+# Then restart
+python3 dev_server.py
 ```
 
 ### Issue: Server Crashes or Hangs
@@ -232,7 +247,10 @@ pkill -f dev_server
 ## 🆘 Emergency Commands
 
 ```bash
-# Nuclear option - kill everything and restart
+# ONE-LINE NUCLEAR OPTION (kills port 3000 and restarts)
+lsof -ti:3000 | xargs kill -9; sleep 2; python3 dev_server.py
+
+# Alternative nuclear option - kill everything and restart
 pkill -f python
 pkill -f dev_server
 cd /Users/adamrubinsky/VSCode/FantasyAgent

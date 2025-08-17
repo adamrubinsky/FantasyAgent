@@ -1,30 +1,37 @@
 # 🏈 Fantasy Football Draft Assistant
 
-**AI-powered real-time draft recommendations for SUPERFLEX leagues**
+**Multi-Platform AI-powered draft assistant for Sleeper and Yahoo leagues**
 
 [![Multi-Agent AI](https://img.shields.io/badge/AI-Claude%204%20Sonnet-blue.svg)](https://github.com/adamrubinsky/FantasyAgent)
-[![League Type](https://img.shields.io/badge/League-SUPERFLEX-green.svg)]()
+[![Platforms](https://img.shields.io/badge/Platforms-Sleeper%20%7C%20Yahoo-purple.svg)]()
 [![API Status](https://img.shields.io/badge/APIs-Sleeper%20%2B%20FantasyPros-brightgreen.svg)]()
-[![Performance](https://img.shields.io/badge/Response%20Time-15s-green.svg)]()
+[![Performance](https://img.shields.io/badge/Response%20Time-17s-green.svg)]()
 
 ---
 
 ## 🎯 Project Overview
 
-An AI-powered fantasy football draft assistant that provides **real-time recommendations** for **SUPERFLEX leagues**. Built with CrewAI multi-agent system, Claude 4 Sonnet, and live data from Sleeper and FantasyPros APIs.
+A unified fantasy football draft assistant supporting **multiple platforms and league types**. Powered by CrewAI (Sleeper) and LangGraph (Yahoo) multi-agent systems with Claude AI integration.
+
+### 🎮 Supported Leagues
+- **Sleeper SUPERFLEX** - 12-team, Half-PPR, SUPERFLEX position
+- **Yahoo Snake Draft** - 10-team, Full PPR, 6PT passing TDs
+- **Yahoo Auction** - 12-team, Half-PPR, $200 budget
 
 ### ✨ Key Features
-- ⚡ **5 second proactive analysis** at your pick with reasoning
-- 🤖 **CrewAI Multi-Agent System** with Claude 4 Sonnet integration  
-- 🏈 **TRUE SUPERFLEX rankings** using FantasyPros 'OP' position parameter
-- 📊 **Real-time draft monitoring** with instant updates
-- 🎯 **Proactive recommendations** at 6, 3, and 0 picks ahead
-- 📈 **Keeper value scoring** with graduated blending by round
-- 🔄 **Watchlist discipline** - only reaches within 10-15 picks of ADP
-- 🌐 **Web interface** at http://localhost:3000
+- 🎨 **Unified Vue.js Interface** with platform switcher
+- 🤖 **Dual AI Systems**: CrewAI (Sleeper) + LangGraph (Yahoo)
+- 🏈 **Platform-specific rankings** with proper scoring adjustments
+- 📊 **Real-time draft monitoring** (Sleeper, Yahoo coming soon)
+- 🎯 **Proactive recommendations** panel
+- 📈 **Keeper value scoring** with graduated blending
+- 🔄 **Quick question buttons** for common queries
+- 🌐 **Web interfaces** at http://localhost:3000 (original) and :3001 (unified)
 
 ### 🏆 Current Status
-**PRODUCTION READY** as of August 12, 2025 - Agent performing as intended! All issues resolved!
+- **Sleeper**: ✅ PRODUCTION READY - Successfully used in live draft (Aug 12)
+- **Yahoo**: ⚠️ In Development - Agents built, pending MemorySaver fix
+- **Unified Platform**: ✅ Working - Vue.js interface with platform switching
 
 ---
 
@@ -68,11 +75,13 @@ FANTASYPROS_API_KEY=your-fantasypros-key
 ### Running the Assistant
 
 ```bash
-# Start the development server
+# Original Sleeper-only server
 python3 dev_server.py
+# Access at: http://localhost:3000
 
-# Access the web interface
-# Open browser to: http://localhost:3000
+# NEW: Unified multi-platform server
+python3 unified_server.py
+# Access at: http://localhost:3001
 ```
 
 ---
@@ -83,18 +92,22 @@ python3 dev_server.py
 
 ```
 FantasyAgent/
-├── agents/               # CrewAI multi-agent system
-│   └── draft_crew.py    # Main AI orchestration (Claude 4 Sonnet)
-├── api/                 # External API integrations
-│   └── sleeper_client.py    # Sleeper draft monitoring
-├── core/                # Business logic
-│   ├── draft_monitor.py     # Real-time draft tracking
-│   └── official_fantasypros.py  # SUPERFLEX rankings (OP position)
-├── data/                # Cached data and mappings
-│   └── player_id_mapping.json  # 11,389 cross-platform IDs
-├── templates/           # Web interface
-│   └── dev.html        # Main UI (real-time updates)
-└── dev_server.py       # FastAPI backend server
+├── agents/                      # Sleeper CrewAI system
+│   └── draft_crew.py            # Main AI orchestration
+├── yahoo_agents/                # Yahoo LangGraph system
+│   ├── agents/                  # Snake and Auction agents
+│   └── clients/                 # Yahoo API integration
+├── api/                         # External API integrations
+│   └── sleeper_client.py        # Sleeper draft monitoring
+├── core/                        # Shared business logic
+│   ├── draft_monitor.py         # Real-time draft tracking
+│   └── official_fantasypros.py  # Platform-specific rankings
+├── templates/                   # Web interfaces
+│   ├── dev.html                 # Original Sleeper UI
+│   └── unified.html             # NEW: Vue.js unified UI
+├── dev_server.py                # Original Sleeper server
+├── unified_server.py            # NEW: Multi-platform server
+└── server.py                    # Alternative unified server
 ```
 
 ### Data Flow

@@ -79,19 +79,6 @@ async def startup_event():
     
     draft_crew = FantasyDraftCrew(anthropic_api_key=api_key)
     
-    # Pre-initialize agents on startup for faster first query
-    print("🔄 Pre-initializing AI agents (this may take 30-60 seconds)...")
-    try:
-        # Force agent creation now instead of on first query
-        if hasattr(draft_crew, 'agents') and draft_crew.agents is None:
-            draft_crew.agents = draft_crew._create_agents()
-            print("✅ Agents pre-initialized - first query will be MUCH faster!")
-        elif hasattr(draft_crew, 'agents'):
-            print("✅ Agents already initialized")
-    except Exception as e:
-        print(f"⚠️ Could not pre-initialize agents: {e}")
-        print("   First query will initialize them (60+ seconds)")
-    
     print("✅ AI agents ready!")
 
 @app.on_event("shutdown") 

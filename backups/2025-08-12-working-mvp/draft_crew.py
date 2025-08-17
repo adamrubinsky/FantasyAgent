@@ -245,96 +245,50 @@ async def get_live_rankings_data(position: str = "OP", limit: int = 50) -> str:
         Exception: If MCP server connection fails or data retrieval errors
     """
     try:
-        # Check for cached data from today first
-        import time
-        from pathlib import Path
-        import json
-        
-        # Try different cache file names (with and without limit in filename)
-        cache_files = [
-            Path(__file__).parent.parent / "data" / f"fantasypros_rankings_NFL_OP_HALF_{limit}.json",
-            Path(__file__).parent.parent / "data" / "fantasypros_rankings_NFL_OP_HALF_50.json",
-            Path(__file__).parent.parent / "data" / "fantasypros_rankings_NFL_OP_HALF_200.json"
-        ]
-        
-        rankings = None
-        for cache_file in cache_files:
-            if cache_file.exists():
-                cache_age = time.time() - cache_file.stat().st_mtime
-                # Use cache if it's from today (less than 24 hours old)
-                if cache_age < 86400:  # 24 hours
-                    with open(cache_file, 'r') as f:
-                        cached_data = json.load(f)
-                        print(f"✅ Using cached FantasyPros data ({cache_file.name}, {cache_age/3600:.1f}h old)")
-                        rankings = cached_data
-                        break
-        
-        if not rankings:
-            # No cache or cache is old, fetch fresh data
-            from core.official_fantasypros import OfficialFantasyProsMCP
+        # Create async connection to MCP server for live data
+        async with MCPClient() as mcp:
+            # Fetch current rankings from FantasyPros via MCP
+            rankings = await mcp.get_rankings(limit=limit)
             
-            client = OfficialFantasyProsMCP()
-            if await client.is_server_available():
-                print("🔄 Cache expired, fetching fresh FantasyPros rankings")
-                rankings = await client.get_rankings(
-                    sport="NFL",
-                    position=position if position != "ALL" else "OP",  # Use OP for SUPERFLEX
-                    scoring="HALF",
-                    limit=limit
-                )
+            # Filter by position if user requested specific position
+            if position not in ["ALL", "OP"]:  # OP is SUPERFLEX, don't filter
+                filtered_players = []
+                for player in rankings.get('players', []):
+                    # Match exact position (case-sensitive)
+                    if player.get('position') == position:
+                        filtered_players.append(player)
+                # Replace full rankings with filtered subset
+                rankings['players'] = filtered_players[:limit]
+            
+            # Handle different response formats
+            players_list = []
+            if isinstance(rankings, list):
+                # Direct list format
+                players_list = rankings
+            elif isinstance(rankings, dict) and 'players' in rankings:
+                # Dict with players key
+                players_list = rankings['players']
             else:
-                # Fall back to MCP if API not available
-                async with MCPClient() as mcp:
-                    # Fetch current rankings from FantasyPros via MCP
-                    rankings = await mcp.get_rankings(limit=limit)
-        
-        # If still no rankings after all attempts, return fallback
-        if not rankings:
-            print("❌ Failed to get rankings from any source")
-            return get_sync_rankings_fallback()
+                return f"Error: Unexpected rankings format: {type(rankings)}"
             
-        # Filter by position if user requested specific position
-        if position not in ["ALL", "OP"]:  # OP is SUPERFLEX, don't filter
-            filtered_players = []
-            for player in rankings.get('players', []):
-                # Match exact position (case-sensitive)
-                if player.get('position') == position:
-                    filtered_players.append(player)
-            # Replace full rankings with filtered subset
-            rankings['players'] = filtered_players[:limit]
-        
-        # Handle different response formats
-        players_list = []
-        if isinstance(rankings, list):
-            # Direct list format
-            players_list = rankings
-        elif isinstance(rankings, dict) and 'players' in rankings:
-            # Dict with players key
-            players_list = rankings['players']
-        else:
-            return f"Error: Unexpected rankings format: {type(rankings)}"
-        
-        # Format rankings data for agent consumption
-        # Create human-readable list of players with key metrics
-        players_data = []
-        for player in players_list[:limit]:
-            if isinstance(player, dict):
-                # Extract player information with correct FantasyPros field names
-                name = player.get('player_name', player.get('name', 'Unknown'))
-                pos = player.get('player_position_id', player.get('player_positions', player.get('position', 'Unknown')))
-                rank = player.get('rank_ecr', player.get('rank', 'N/A'))
-                pos_rank = player.get('pos_rank', '')
-                team = player.get('player_team_id', player.get('team', 'N/A'))
-                tier = player.get('tier', '')
-                
-                # Format as readable string for agent to parse
-                player_info = f"{name} ({pos}) - Rank: {rank}, Pos: {pos_rank}, Team: {team}"
-                if tier:
-                    player_info += f", Tier: {tier}"
-                players_data.append(player_info)
-        
-        # Return formatted string with header for agent context
-        return f"LIVE RANKINGS ({position}):\n" + "\n".join(players_data)
+            # Format rankings data for agent consumption
+            # Create human-readable list of players with key metrics
+            players_data = []
+            for player in players_list[:limit]:
+                if isinstance(player, dict):
+                    # Extract player information with fallbacks for missing data
+                    name = player.get('name', player.get('player_name', 'Unknown'))
+                    pos = player.get('position', player.get('pos', 'Unknown'))
+                    rank = player.get('rank', player.get('overall_rank', 'N/A'))
+                    adp = player.get('adp', 'N/A')
+                    team = player.get('team', 'N/A')
+                    
+                    # Format as readable string for agent to parse
+                    player_info = f"{name} ({pos}) - Rank: {rank}, ADP: {adp}, Team: {team}"
+                    players_data.append(player_info)
+            
+            # Return formatted string with header for agent context
+            return f"LIVE RANKINGS ({position}):\n" + "\n".join(players_data)
             
     except Exception as e:
         print(f"❌ MCP rankings failed: {e}")
@@ -533,18 +487,13 @@ class FantasyDraftCrew:
         Returns:
             Comprehensive analysis and recommendations from the agent crew
         """
-        import time
-        total_start = time.time()
-        
         # Update session context
         if context:
             self.session_context.update(context)
         
         # If we have an active draft connection, update with live data
         if self.draft_active:
-            update_start = time.time()
             await self.update_draft_state()
-            print(f"⏱️ Draft state update: {time.time() - update_start:.2f}s")
         
         # Add league context (cached)
         league_context = league_manager.get_current_context()
@@ -559,19 +508,12 @@ class FantasyDraftCrew:
         
         # Try fast single-agent approach first for simple questions
         if self._is_simple_question(question):
-            simple_start = time.time()
-            result = await self._handle_simple_question(question)
-            print(f"⏱️ Simple question handling: {time.time() - simple_start:.2f}s")
-            print(f"⏱️ TOTAL TIME: {time.time() - total_start:.2f}s")
-            return result
+            return await self._handle_simple_question(question)
         
         # Use full multi-agent workflow for complex questions
         try:
-            task_start = time.time()
             tasks = await self._create_optimized_tasks(question)
-            print(f"⏱️ Task creation: {time.time() - task_start:.2f}s")
             
-            crew_setup_start = time.time()
             crew = Crew(
                 agents=[
                     self.agents["data_collector"],
@@ -583,14 +525,10 @@ class FantasyDraftCrew:
                 process=Process.sequential,
                 verbose=False  # Reduce output for speed
             )
-            print(f"⏱️ Crew setup: {time.time() - crew_setup_start:.2f}s")
             
             # No timeout - let it complete properly
             print("🚀 Starting CrewAI analysis (this may take 20-30 seconds)...")
-            kickoff_start = time.time()
             result = crew.kickoff()
-            print(f"⏱️ Crew kickoff: {time.time() - kickoff_start:.2f}s")
-            print(f"⏱️ TOTAL TIME: {time.time() - total_start:.2f}s")
             print("✅ CrewAI analysis complete")
             return str(result)
                 
@@ -629,19 +567,10 @@ class FantasyDraftCrew:
     async def _handle_simple_question(self, question: str) -> str:
         """Fast single-agent response for simple questions with enhanced strategy"""
         print("🚀 Using optimized single-agent response with advanced analytics...")
-        import time
-        handler_start = time.time()
-        
-        # Check if this is a keeper-specific question
-        question_lower = question.lower()
-        if any(term in question_lower for term in ["keeper", "keep", "dynasty", "next year", "2026"]):
-            return await self._handle_keeper_question(question)
         
         try:
             # Get SUPERFLEX rankings with ADP data - essential for value detection
-            rankings_start = time.time()
             raw_live_data = await get_cached_rankings_data(position="OP", limit=200)  # Get 200 for full draft coverage
-            print(f"  ⏱️ Rankings fetch: {time.time() - rankings_start:.2f}s")
             
             # Get draft context with enhancements
             draft_context = ""
@@ -781,7 +710,7 @@ class FantasyDraftCrew:
                 self.session_context['recent_picks'] = draft_picks[-6:] if len(draft_picks) >= 6 else draft_picks
                 
                 # Parse ADPs if not already done
-                if not self.session_context.get('player_adps') and raw_live_data:
+                if not self.session_context.get('player_adps'):
                     self._parse_and_store_adps(raw_live_data)
                 
                 # Detect value picks
@@ -861,15 +790,8 @@ class FantasyDraftCrew:
                 1. ONLY recommend players from the AVAILABLE PLAYERS list above
                 2. Follow the Position Summary priorities
                 3. For SUPERFLEX: Balance QB value with roster needs
-                4. DO NOT REACH: Only recommend players within 10-15 picks of their ADP/rank
-                5. WATCHLIST DISCIPLINE: Do NOT prioritize watchlist/starred players unless they're within 10 picks of ADP
                 
                 RECOMMENDATION LOGIC:
-                • ADP AWARENESS: Don't recommend players more than 15 picks before their ADP - that's reaching!
-                • WATCHLIST RULE: Just because a player is on the watchlist does NOT mean draft them early
-                • If a player's rank is 50 and we're at pick 20, that's a 30-pick reach - TOO EARLY
-                • Good value = player available at or after their ADP (THIS is when to draft watchlist players)
-                • Acceptable reach = within 10-15 picks of ADP (for high-priority needs only)
                 • POSITION ELIGIBILITY: Only recommend QB, RB, WR, TE, K, DST (no individual defensive players)
                 • ROSTER CONSTRUCTION: Consider specific starting lineup needs (1QB, 2RB, 3WR, 1TE, 1FLEX, 1SUPERFLEX)
                 • WR PREMIUM LEAGUE: Need 3 starting WRs + FLEX eligibility = HIGH WR demand
@@ -878,7 +800,7 @@ class FantasyDraftCrew:
                 • If user lacks WR depth (<5 WRs): Strongly favor WRs for WR1/WR2/WR3/FLEX needs  
                 • Use FantasyPros SUPERFLEX rankings as primary guide (more accurate than Sleeper for SUPERFLEX)
                 • Consider bye week diversity to avoid stacking same-week players
-                • K and DST typically drafted in final rounds (rounds 15-17)
+                • K and DST typically drafted in final rounds (picks 13-16)
                 
                 Provide multiple recommendations with:
                 1. Top 3 AVAILABLE player recommendations (following position priorities above)
@@ -944,22 +866,17 @@ class FantasyDraftCrew:
             top_players = available_players[:20] if available_players else []
             player_list = '\n'.join([f"• {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in top_players[:10]])
             
-            # Determine primary need - respect round-based strategy
-            current_round = (current_pick - 1) // 12 + 1  # Assuming 12 teams
-            
-            # Core positions first, K/DEF only in late rounds
-            if position_counts['QB'] < 2:
+            # Determine primary need
+            if position_counts['K'] == 0:
+                primary_need = "KICKER"
+            elif position_counts['DEF'] == 0:
+                primary_need = "DEFENSE"
+            elif position_counts['QB'] < 2:
                 primary_need = "QB (for SUPERFLEX)"
             elif position_counts['RB'] < 3:
                 primary_need = "RB"
             elif position_counts['WR'] < 4:
                 primary_need = "WR"
-            elif position_counts['TE'] == 0:
-                primary_need = "TE"
-            elif current_round >= 15 and position_counts['K'] == 0:
-                primary_need = "KICKER (appropriate round for K)"
-            elif current_round >= 15 and position_counts['DEF'] == 0:
-                primary_need = "DEFENSE (appropriate round for DEF)"
             else:
                 primary_need = "Best Player Available"
             
@@ -1016,36 +933,17 @@ Based on your roster needs and available players, consider drafting from the lis
     
     def _extract_player_names(self, question: str) -> List[str]:
         """Extract likely player names from question"""
-        # Common words to exclude that aren't player names
-        exclude_words = {
-            'Should', 'Who', 'What', 'When', 'Where', 'Why', 'How', 'The', 'They',
-            'Draft', 'Round', 'Pick', 'Team', 'Week', 'Start', 'Bench', 'Trade',
-            'Keep', 'Drop', 'Add', 'Which', 'Between', 'Compare', 'Versus',
-            'Looking', 'Need', 'Want', 'Have', 'Think', 'Consider', 'Help',
-            'Best', 'Top', 'Good', 'Great', 'Elite', 'Value', 'Sleeper',
-            'Rankings', 'Projections', 'Points', 'Score', 'Season', 'Year'
-        }
-        
+        # Simple name extraction - look for capitalized words
         words = question.split()
         names = []
         
         for i, word in enumerate(words):
-            # Clean word of punctuation
-            clean_word = word.strip('?,.')
-            
-            if clean_word and clean_word[0].isupper() and len(clean_word) > 2:
-                # Skip if it's a common non-name word
-                if clean_word in exclude_words:
-                    continue
-                    
+            if word[0].isupper() and len(word) > 2:
                 # Check if next word is also capitalized (likely full name)
-                if i + 1 < len(words):
-                    next_word = words[i + 1].strip('?,.')
-                    if next_word and next_word[0].isupper() and next_word not in exclude_words:
-                        full_name = f"{clean_word} {next_word}"
-                        names.append(full_name)
-                        # Skip the next word since we've used it
-                        continue
+                if i + 1 < len(words) and words[i + 1][0].isupper():
+                    names.append(f"{word} {words[i + 1]}")
+                elif word not in ['Should', 'Who', 'What', 'The', 'Josh', 'Allen'] and len(word) > 3:
+                    names.append(word)
         
         return list(set(names))  # Remove duplicates
     
@@ -1054,44 +952,8 @@ Based on your roster needs and available players, consider drafting from the lis
         
         context_str = json.dumps(self.session_context, indent=2)
         
-        # Get BOTH datasets for comprehensive analysis
-        # 1. Full FantasyPros rankings (for reference and ADP values)
-        full_rankings = await get_live_rankings_data(limit=200)  # Get 200 for better coverage
-        
-        # 2. Filtered available players (who's actually available to draft)
-        draft_picks = self.session_context.get('draft_picks', [])
-        available_players = self.session_context.get('available_players', [])
-        
-        available_section = ""
-        if draft_picks and available_players:
-            # We have draft context - show who's actually available
-            print(f"📊 Using filtered available players: {len(available_players)} available")
-            # Format available players as rankings text
-            available_lines = []
-            for player in available_players[:50]:  # Top 50 available
-                name = player.get('player_name', player.get('name', 'Unknown'))
-                pos_list = player.get('positions', [])
-                pos = pos_list[0] if pos_list else player.get('player_position_id', '?')
-                team = player.get('team', 'N/A')
-                # Try to find their overall rank from the full rankings
-                overall_rank = "N/A"
-                if "LIVE RANKINGS" in full_rankings:
-                    for line in full_rankings.split('\n'):
-                        if name in line and "Rank:" in line:
-                            try:
-                                overall_rank = line.split("Rank:")[1].split(",")[0].strip()
-                                break
-                            except:
-                                pass
-                available_lines.append(f"{name} ({pos}) - Overall Rank: {overall_rank}, Team: {team}")
-            
-            available_section = "\n\nACTUALLY AVAILABLE TO DRAFT (Top 50):\n" + "\n".join(available_lines)
-            
-            # Add drafted count for context
-            available_section = f"\n\n📊 DRAFT STATUS: {len(draft_picks)} players drafted, {len(available_players)} available" + available_section
-        
-        # Combine both datasets
-        live_rankings = full_rankings + available_section
+        # Get live data for agents to use
+        live_rankings = await get_live_rankings_data(limit=200)  # Get 200 for better coverage
         
         # Extract player names from question for specific projections
         player_names = []
@@ -1111,24 +973,22 @@ Based on your roster needs and available players, consider drafting from the lis
             
             Current context: {context_str}
             
-            LIVE CURRENT DATA FROM FANTASYPROS (USE THESE RANKINGS!):
+            LIVE CURRENT DATA:
             {live_rankings}
             
             {live_projections}
             
             Your tasks:
-            1. CRITICAL: Use the data provided above - both full rankings AND available players
-            2. If there's an "ACTUALLY AVAILABLE TO DRAFT" section, focus on those players
-            3. When asked about "best available", use the AVAILABLE section, not the full rankings
-            4. ALWAYS REPORT THE ACTUAL RANK NUMBER from the live data
-            5. Note which players are drafted (in full rankings but NOT in available section)
+            1. Use the LIVE DATA provided above (not your training data)
+            2. Identify what specific players or positions are relevant to the question
+            3. Extract relevant rankings and projections from the live data
+            4. Note any league-specific settings that matter
+            5. Organize the current data for analysis
             
-            IMPORTANT: If draft is active, many top players are already drafted!
-            Focus on the "ACTUALLY AVAILABLE TO DRAFT" section for recommendations.
-            Report the EXACT rank numbers you find in the data.
+            Focus on factual data collection using the live rankings provided.
             """,
             agent=self.agents["data_collector"],
-            expected_output="Exact rankings from FantasyPros data with specific rank numbers"
+            expected_output="Organized data summary using live rankings and projections data"
         )
         
         # Task 2: Player Analysis  
@@ -1171,17 +1031,15 @@ Based on your roster needs and available players, consider drafting from the lis
             Provide final recommendations for: "{question}"
             
             Synthesize all previous work to:
-            1. BASE YOUR RECOMMENDATION ON THE ACTUAL FANTASYPROS RANKINGS
-            2. Always mention the player's actual rank (e.g., "ranked #31 overall" or "WR9")
-            3. If recommending a lower-ranked player over a higher-ranked one, explain why
-            4. Give clear, actionable recommendations with rank-based reasoning
-            5. Provide your primary pick and a backup option with their ranks
+            1. Give clear, actionable recommendations
+            2. Explain the reasoning behind each suggestion
+            3. Address the original question directly
+            4. Provide 2-3 specific options with pros/cons
             
-            Remember: Lower rank number = better player. Use the actual rank numbers from the data.
-            This is the final output the user will see - make it clear and include rankings.
+            This is the final output the user will see - make it clear and confident.
             """,
             agent=self.agents["advisor"],
-            expected_output="Clear recommendation with FantasyPros rankings explicitly mentioned"
+            expected_output="Clear, actionable draft recommendations with reasoning and multiple options"
         )
         
         return [data_task, analysis_task, strategy_task, recommendation_task]
@@ -1476,21 +1334,14 @@ Based on your roster needs and available players, consider drafting from the lis
                     else:  # Even rounds: reverse order  
                         return (round_num - 1) * teams + (teams - user_roster_id + 1)
                 
-                # Find user's next pick with better logging
+                # Find user's next pick
                 current_round = (current_pick_count // teams) + 1
-                print(f"🔄 Snake draft calculation: Current round {current_round}, pick #{current_pick_count + 1}")
-                
                 for round_check in range(current_round, current_round + 3):  # Check next few rounds
                     user_pick_in_round = get_user_pick_in_round(round_check, user_roster_id, teams)
-                    print(f"  Round {round_check}: User picks at #{user_pick_in_round}")
-                    
                     if user_pick_in_round > current_pick_count:
                         user_next_pick_number = user_pick_in_round
                         picks_until_user = user_pick_in_round - current_pick_count - 1
-                        print(f"✅ Next user pick: #{user_next_pick_number} ({picks_until_user} picks away)")
                         break
-                else:
-                    print(f"⚠️ Could not calculate next pick for user in slot {user_roster_id}")
                 
             # Extract user's roster from picks
             user_roster = [p for p in picks if p.get('draft_slot') == user_roster_id]
@@ -1518,12 +1369,6 @@ Based on your roster needs and available players, consider drafting from the lis
             # Check for proactive recommendations
             proactive_result = await self.check_proactive_recommendations()
             
-            # Debug logging for proactive
-            if proactive_result.get("proactive_generated"):
-                print(f"✅ PROACTIVE GENERATED: {proactive_result.get('trigger_type')} at {proactive_result.get('picks_ahead')} picks away")
-            else:
-                print(f"⏭️ No proactive generated - picks_until: {picks_until_user}, current: {current_pick_count + 1}, last_proactive: {self.session_context.get('last_proactive_pick')}")
-            
             return {
                 "current_pick": current_pick_count + 1,
                 "user_next_pick": user_next_pick_number,
@@ -1544,18 +1389,12 @@ Based on your roster needs and available players, consider drafting from the lis
         Returns:
             Dict with proactive recommendation data if needed
         """
-        # Always log the check attempt
-        print(f"🔍 Proactive check attempt - draft_active: {self.draft_active}, picks_until_user: {self.session_context.get('picks_until_user')}")
-        
-        if not self.draft_active or self.session_context.get("picks_until_user") is None:
-            print(f"🚫 Proactive check skipped - draft not active or picks_until_user is None")
+        if not self.draft_active or not self.session_context.get("picks_until_user"):
             return {}
         
         picks_until_user = self.session_context.get("picks_until_user", 999)
         current_pick = self.session_context.get("current_pick", 1)
         last_proactive = self.session_context.get("last_proactive_pick")
-        
-        print(f"🔍 Proactive check - picks_until: {picks_until_user}, current: {current_pick}, last_proactive: {last_proactive}")
         
         # Generate proactive recommendations at 6 picks and 3 picks ahead
         # Use <= to handle cases where polling might miss exact number
@@ -1567,13 +1406,9 @@ Based on your roster needs and available players, consider drafting from the lis
             should_generate = True
             trigger_type = "initial"
         # Check if we should generate revision recommendation (around 3 picks ahead)
-        elif picks_until_user <= 3 and picks_until_user >= 2 and (not last_proactive or current_pick - last_proactive > 2):
+        elif picks_until_user <= 3 and picks_until_user >= 1 and (not last_proactive or current_pick - last_proactive > 2):
             should_generate = True
             trigger_type = "revision"
-        # Check if it's user's turn RIGHT NOW (0 picks away)
-        elif picks_until_user == 0 and (not last_proactive or current_pick - last_proactive > 0):
-            should_generate = True
-            trigger_type = "at_pick"
         
         if not should_generate:
             return {}
@@ -1636,8 +1471,8 @@ Based on your roster needs and available players, consider drafting from the lis
             if position_counts['TE'] < 2:  # Need starter + backup
                 needs.append('TE')
             
-            # Only consider K/DEF in late rounds (15+)
-            if current_round >= 15:
+            # Only consider K/DEF in late rounds (13+)
+            if current_round >= 13:
                 if position_counts['K'] == 0:
                     needs.append('K')
                 if position_counts['DEF'] == 0:
@@ -1647,48 +1482,6 @@ Based on your roster needs and available players, consider drafting from the lis
             recommendations = []
             available_by_need = []
             
-            # In rounds 9+, start blending keeper value with rankings (graduated scale)
-            if current_round >= 9:
-                # Determine keeper value weight based on round
-                if current_round <= 10:
-                    keeper_weight = 0.1  # 10% keeper, 90% rankings
-                    keeper_multiplier = 1.0
-                elif current_round <= 12:
-                    keeper_weight = 0.3  # 30% keeper, 70% rankings
-                    keeper_multiplier = 1.2
-                elif current_round <= 14:
-                    keeper_weight = 0.5  # 50% keeper, 50% rankings
-                    keeper_multiplier = 1.4
-                else:  # Rounds 15-17
-                    keeper_weight = 0.7  # 70% keeper, 30% rankings
-                    keeper_multiplier = 1.6
-                
-                ranking_weight = 1.0 - keeper_weight
-                
-                # Apply round-based multipliers and calculate blended scores
-                for player in available_players[:30]:  # Check top 30 for keeper value
-                    positions = player.get('positions', [])
-                    
-                    # K and DEF have no keeper value - use pure rankings
-                    if 'K' in positions or 'DEF' in positions:
-                        keeper_base = 0
-                        actual_keeper_weight = 0
-                        actual_ranking_weight = 1.0
-                    else:
-                        keeper_base = player.get('keeper_base_score', 0) * keeper_multiplier
-                        actual_keeper_weight = keeper_weight
-                        actual_ranking_weight = ranking_weight
-                    
-                    # Convert rank to score (lower rank = higher score)
-                    rank_score = 200 - min(player.get('rank', 999), 200)
-                    
-                    # Calculate blended score
-                    player['blended_score'] = (actual_ranking_weight * rank_score) + (actual_keeper_weight * keeper_base)
-                    player['adjusted_keeper_score'] = keeper_base  # Store for display
-                
-                # Re-sort by blended score for rounds 9+
-                available_players = sorted(available_players[:30], key=lambda x: x.get('blended_score', 0), reverse=True)
-            
             for i, pos in enumerate(needs[:3]):  # Top 3 needs
                 pos_players = [p for p in available_players if pos in p.get('positions', [])]
                 if pos_players:
@@ -1697,115 +1490,26 @@ Based on your roster needs and available players, consider drafting from the lis
                     best_player = pos_players[0]
                     player_name = best_player.get('name', 'Unknown')
                     
-                    # Add keeper indicator based on keeper value and round
-                    if current_round >= 9:
-                        keeper_score = best_player.get('keeper_base_score', 0)
-                        if keeper_score >= 150:
-                            player_name += " 🔥"  # Elite keeper value
-                        elif keeper_score >= 100:
-                            player_name += " 🔒"  # Great keeper value
-                        elif keeper_score >= 60:
-                            player_name += " 📈"  # Good keeper value
-                    
                     # Add to list for formatting
                     available_by_need.append((pos, player_name, pos_players[:3]))
             
-            # Build formatted recommendations with reasoning
+            # Build formatted recommendations
             if available_by_need:
-                for i, (pos, player_full, alternatives) in enumerate(available_by_need):
+                for i, (pos, player, alternatives) in enumerate(available_by_need):
                     emoji = ["🥇", "🥈", "🥉"][i]
-                    
-                    # Extract player name without emoji for lookup
-                    player_clean = player_full.split(' 🔥')[0].split(' 🔒')[0].split(' 📈')[0]
-                    
-                    # Find the player data to get reasoning
-                    player_data = None
-                    for p in alternatives:
-                        if p.get('name', '') == player_clean:
-                            player_data = p
-                            break
-                    
-                    # Build reasoning based on round and player attributes
-                    reasoning = []
-                    if current_round >= 9 and player_data:
-                        # Skip keeper reasoning for K and DEF
-                        positions = player_data.get('positions', [])
-                        if 'K' not in positions and 'DEF' not in positions:
-                            keeper_score = player_data.get('keeper_base_score', 0)
-                            if keeper_score >= 150:
-                                reasoning.append("elite keeper")
-                            elif keeper_score >= 100:
-                                reasoning.append("strong keeper")
-                            elif keeper_score >= 60:
-                                reasoning.append("keeper upside")
-                        
-                        # Add rookie/age context (skip for K/DEF)
-                        if 'K' not in positions and 'DEF' not in positions:
-                            years_exp = player_data.get('years_exp', 99)
-                            if years_exp == 0:
-                                reasoning.append("rookie")
-                            elif years_exp <= 2:
-                                reasoning.append(f"year {years_exp + 1}")
-                    
-                    # Add value context
-                    player_rank = player_data.get('rank', 999) if player_data else 999
-                    if player_rank < current_pick - 10:
-                        reasoning.append("good value")
-                    
-                    # Add position-specific reasoning
-                    if pos == 'QB' and position_counts['QB'] < 2:
-                        reasoning.append("SUPERFLEX need")
-                    elif pos == 'WR' and position_counts['WR'] < 5:
-                        reasoning.append("need 3 starters")
-                    elif pos == 'RB' and position_counts['RB'] < 4:
-                        reasoning.append("FLEX depth")
-                    elif pos == 'TE' and position_counts['TE'] < 2:
-                        reasoning.append("backup TE")
-                    
-                    # Check for stack opportunities
-                    if player_data and pos in ['WR', 'TE']:
-                        # Check if player stacks with user's QBs
-                        for qb_pick in user_roster:
-                            if qb_pick.get('metadata', {}).get('position') == 'QB':
-                                qb_team = qb_pick.get('metadata', {}).get('team')
-                                player_team = player_data.get('team')
-                                if qb_team and player_team and qb_team == player_team:
-                                    qb_name = f"{qb_pick.get('metadata', {}).get('first_name', '')} {qb_pick.get('metadata', {}).get('last_name', '')}".strip()
-                                    reasoning.append(f"stacks w/{qb_name}")
-                                    break
-                    
-                    reason_str = f" ({', '.join(reasoning)})" if reasoning else ""
-                    alt_names = ', '.join([p.get('name', 'Unknown') for p in alternatives[1:3]]) if len(alternatives) > 1 else ''
-                    
-                    if alt_names:
-                        rec_text = f"\n{emoji} **{player_full} ({pos})**{reason_str}\n   Alternatives: {alt_names}"
-                        recommendations.append(rec_text)
-                    else:
-                        rec_text = f"\n{emoji} **{player_full} ({pos})**{reason_str}"
-                        recommendations.append(rec_text)
+                    alt_names = ', '.join([p.get('name', 'Unknown') for p in alternatives[1:3]]) if len(alternatives) > 1 else 'No alternatives'
+                    recommendations.append(f"\n{emoji} **{player} ({pos})** - Also consider: {alt_names}")
             
             # Build fast recommendation
             roster_summary = f"{position_counts['QB']} QB, {position_counts['RB']} RB, {position_counts['WR']} WR, {position_counts['TE']} TE"
             if position_counts['K'] > 0 or position_counts['DEF'] > 0:
                 roster_summary += f", {position_counts['K']} K, {position_counts['DEF']} DEF"
             
-            # Add keeper value context for rounds 9+
-            keeper_context = ""
-            if current_round >= 9:
-                if current_round <= 10:
-                    keeper_context = "\n**Strategy**: Starting to consider keeper value (10% weight) 📊"
-                elif current_round <= 12:
-                    keeper_context = "\n**Strategy**: Balancing talent with keeper upside (30% weight) 🎯"
-                elif current_round <= 14:
-                    keeper_context = "\n**Strategy**: Equal focus on 2025 and keeper value (50% weight) ⚖️"
-                else:
-                    keeper_context = "\n**Strategy**: Prioritizing 2026 keeper potential (70% weight) 🚀"
-            
             recommendation = f"""
 📊 **Proactive Analysis** (Pick #{user_next_pick} - {picks_until_user} picks away)
 
 **Your Roster**: {roster_summary}
-**Current Round**: {current_round}{keeper_context}
+**Current Round**: {current_round}
 
 **Top 3 Recommendations**:
 {''.join(recommendations) if recommendations else '⏳ Analyzing available players...'}
@@ -1815,7 +1519,7 @@ Based on your roster needs and available players, consider drafting from the lis
 • {"✅" if position_counts['WR'] >= 4 else "⚠️"} WR: {"Good depth" if position_counts['WR'] >= 4 else "CRITICAL - need 3 starters + FLEX"}
 • {"✅" if position_counts['RB'] >= 3 else "⚠️"} RB: {"Good depth" if position_counts['RB'] >= 3 else "Need depth for injuries"}
 • {"✅" if position_counts['TE'] >= 1 else "⚠️"} TE: {"Starter secured" if position_counts['TE'] >= 1 else "Need starter"}
-{"• K/DEF: Wait until rounds 15-17" if current_round < 15 else f"• K/DEF: Time to draft ({position_counts['K']} K, {position_counts['DEF']} DEF) - {'✅ K filled' if position_counts['K'] > 0 else '⚠️ Need K'} | {'✅ DEF filled' if position_counts['DEF'] > 0 else '⚠️ Need DEF'}"}
+{"• K/DEF: Wait until rounds 13-16" if current_round < 13 else f"• K/DEF: Time to draft ({position_counts['K']} K, {position_counts['DEF']} DEF)"}
 
 **Available Players** (Top 10):
 {chr(10).join([f"• {p.get('name', 'Unknown')} ({', '.join(p.get('positions', ['?']))})" for p in available_players[:10]])}
@@ -1970,10 +1674,6 @@ Based on your roster needs and available players, consider drafting from the lis
         Args:
             rankings_data: Raw rankings text with ADP values
         """
-        if not rankings_data:
-            print("⚠️ No rankings data to parse for ADPs")
-            return
-            
         adps = {}
         lines = rankings_data.split('\n')
         
@@ -2164,9 +1864,9 @@ Based on your roster needs and available players, consider drafting from the lis
             
             12: "🎯 ROUND 12: Pure upside plays - swing for ceiling",
             
-            13: "🎯 ROUND 13: Continue skill position depth - high upside rookies/handcuffs",
+            13: "🎯 ROUND 13: Final skill position lottery tickets",
             
-            14: "🎯 ROUND 14: Final skill position lottery tickets before K/DEF",
+            14: "🎯 ROUND 14: Last upside swings before DST/K",
             
             15: "🎯 ROUND 15: DST with easy Weeks 1-3 schedule (weak opposing QBs)",
             
@@ -2221,78 +1921,6 @@ Based on your roster needs and available players, consider drafting from the lis
             analysis["message"] = "✅ Good bye week distribution"
             
         return analysis
-    
-    async def _handle_keeper_question(self, question: str) -> str:
-        """
-        Handle questions specifically about keeper value
-        
-        Returns top keeper targets from available players
-        """
-        print("🔒 Analyzing keeper value specifically...")
-        
-        available_players = self.session_context.get('available_players', [])
-        current_pick = self.session_context.get('current_pick', 1)
-        current_round = (current_pick - 1) // 12 + 1  # Assuming 12 teams
-        
-        if not available_players:
-            return "No available players to analyze for keeper value."
-        
-        # Filter and score players by keeper value
-        keeper_candidates = []
-        for player in available_players[:50]:  # Check top 50 available
-            keeper_base = player.get('keeper_base_score', 0)
-            if keeper_base > 0:  # Only consider players with keeper value
-                # Apply round multiplier for accurate current value
-                if current_round >= 11:
-                    keeper_base *= 1.2
-                if current_round >= 14:
-                    keeper_base *= 1.5
-                
-                keeper_candidates.append({
-                    'name': player.get('name', 'Unknown'),
-                    'positions': player.get('positions', []),
-                    'years_exp': player.get('years_exp', 99),
-                    'keeper_score': keeper_base,
-                    'rank': player.get('rank', 999)
-                })
-        
-        # Sort by keeper score
-        keeper_candidates.sort(key=lambda x: x['keeper_score'], reverse=True)
-        
-        # Build response
-        response = f"""
-🔒 **Top Keeper Targets Available**
-
-**Current Round**: {current_round}
-**Keeper Strategy**: {"Heavy focus (rounds 15+)" if current_round >= 15 else "Balanced approach (rounds 11-14)" if current_round >= 11 else "Starting to consider (rounds 9-10)" if current_round >= 9 else "Focus on 2025 value first"}
-
-**Top 10 Keeper Value Players**:
-"""
-        
-        for i, player in enumerate(keeper_candidates[:10], 1):
-            emoji = "🔥" if player['keeper_score'] >= 150 else "🔒" if player['keeper_score'] >= 100 else "📈"
-            years_str = "Rookie" if player['years_exp'] == 0 else f"Year {player['years_exp'] + 1}"
-            pos_str = "/".join(player['positions'])
-            response += f"\n{i}. **{player['name']}** ({pos_str}) - {years_str} {emoji}"
-            response += f"\n   Keeper Score: {player['keeper_score']:.0f} | Current Rank: {player['rank']}"
-        
-        # Add keeper rules reminder
-        response += """
-
-**Your League's Keeper Rules**:
-• 3 keepers allowed each season
-• Rounds 1-3: Cannot be kept
-• Rounds 4-10: Keep for 1 round earlier
-• Rounds 11-17: Keep for 2 rounds earlier
-
-**Key Targets**:
-• Rookie QBs (highest SUPERFLEX value)
-• Rookie RBs with opportunity
-• 2nd/3rd year WR breakouts
-• Young TEs with upside
-"""
-        
-        return response
 
 
 # Test function

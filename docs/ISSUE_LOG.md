@@ -5,6 +5,72 @@ This document tracks all issues encountered during development, their root cause
 
 ---
 
+## Phase 2, Day 2 Session (August 16, 2025)
+
+### Issue #7: CrewAI API Key Not Loading
+**Severity**: 🔴 Critical  
+**Component**: Unified server / CrewAI integration  
+**Status**: ✅ RESOLVED
+
+**Problem**:
+- Sleeper agent failed with "ANTHROPIC_API_KEY required for CrewAI agents"
+- API key was present in environment but not reaching CrewAI
+- Multiple "Failed to get response" errors in UI
+
+**Root Cause**:
+1. Calling non-existent `test_crew()` method instead of `analyze_draft_question()`
+2. Not passing API key explicitly to FantasyDraftCrew constructor
+3. CrewAI requires explicit environment variable setting
+
+**Solution**:
+```python
+# Fixed method call
+result = await crew.analyze_draft_question(query.query, query.context or {})
+
+# Explicitly pass API key
+api_key = os.getenv("ANTHROPIC_API_KEY")
+self.sleeper_crew = FantasyDraftCrew(anthropic_api_key=api_key)
+```
+
+---
+
+### Issue #8: Server Reload Crashes
+**Severity**: 🟡 Medium  
+**Component**: Uvicorn server configuration  
+**Status**: ✅ RESOLVED
+
+**Problem**:
+- Server would start then immediately stop
+- Warning: "You must pass the application as an import string to enable 'reload'"
+
+**Solution**:
+- Set `reload=False` in uvicorn.run()
+- Reload incompatible with direct app object passing
+
+---
+
+### Issue #9: Yahoo Agents MemorySaver Import
+**Severity**: 🟡 Medium  
+**Component**: Yahoo LangGraph agents  
+**Status**: ⚠️ KNOWN ISSUE - Not Production Ready
+
+**Problem**:
+```
+cannot import name 'MemorySaver' from 'langgraph.checkpoint'
+```
+
+**Impact**:
+- Yahoo Snake agent returns mock responses
+- Yahoo Auction agent returns mock responses
+- No live Yahoo draft monitoring
+
+**Workaround**:
+- Mock agents return placeholder responses
+- Sleeper platform fully functional
+- Yahoo implementation pending for future session
+
+---
+
 ## Emergency Draft Day Session (August 14, 2025 - Evening)
 
 ### 🚨 CRITICAL: Live Draft Data Access Failure
