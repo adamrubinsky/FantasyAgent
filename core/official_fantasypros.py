@@ -166,21 +166,31 @@ class OfficialFantasyProsMCP:
         
         endpoint = f"nfl/2025/consensus-rankings"
         
-        # CRITICAL: Use 'OP' for SUPERFLEX rankings, 'DRAFT' type for draft rankings
-        params = {
-            "scoring": scoring,
-            "type": "DRAFT",  # Always use DRAFT type for draft rankings
-            "week": 0         # Season-long rankings
-        }
-        
-        # Map position parameter correctly for SUPERFLEX
-        if position == "ALL" or position == "SUPERFLEX":
-            # Use 'OP' (Offensive Player) for SUPERFLEX rankings
-            params["position"] = "OP"  # This gives proper SUPERFLEX rankings!
-        elif position:
-            params["position"] = position
+        # Map position parameter correctly
+        if position == "OP" or position == "SUPERFLEX":
+            # Use 'OP' for SUPERFLEX rankings - Sleeper only
+            params = {
+                "scoring": scoring,
+                "type": "DRAFT",  # DRAFT type for SUPERFLEX
+                "position": "OP",  # OP gives proper SUPERFLEX rankings with QBs weighted high
+                "week": 0         # Season-long rankings
+            }
+        elif position == "ALL":
+            # For standard leagues (Yahoo), use ALL position with STD type
+            params = {
+                "scoring": scoring,
+                "type": "STD",     # STD type for standard rankings (no SUPERFLEX weighting)
+                "position": "ALL", # ALL position includes QB, RB, WR, TE
+                "week": 0         # Season-long rankings
+            }
         else:
-            params["position"] = "OP"  # Default to SUPERFLEX rankings
+            # Specific position requested
+            params = {
+                "scoring": scoring,
+                "type": "STD",
+                "position": position,
+                "week": 0
+            }
         
         result = await self._make_api_request(endpoint, params)
         

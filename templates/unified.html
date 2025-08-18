@@ -23,7 +23,7 @@
         .platform-yahoo-snake { 
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
         }
-        .platform-yahoo-auction { 
+        .platform-sleeper-auction { 
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
         }
         
@@ -72,7 +72,7 @@
                                 <option value="">Select League...</option>
                                 <option value="sleeper">Sleeper SUPERFLEX (12-team)</option>
                                 <option value="yahoo-snake">Yahoo Snake (10-team, Full PPR)</option>
-                                <option value="yahoo-auction">Yahoo Auction (12-team, Half PPR)</option>
+                                <option value="sleeper-auction">Sleeper Auction (12-team, Half PPR, $200)</option>
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                                 <i class="fas fa-chevron-down"></i>
@@ -98,6 +98,86 @@
                             <p class="text-sm">Draft Date: {{ platformInfo.draftDate }}</p>
                             <p class="text-sm" v-if="platformInfo.budget">Budget: ${{ platformInfo.budget }}</p>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Draft Connection Bar -->
+                <div v-if="selectedPlatform && !draftConnected" class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div class="space-y-3">
+                        <!-- Draft URL Input -->
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-link text-yellow-600"></i>
+                            <input v-model="draftUrl" 
+                                   type="text" 
+                                   :placeholder="getDraftUrlPlaceholder()"
+                                   class="flex-1 px-3 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
+                        </div>
+                        
+                        <!-- Team/Slot Identification -->
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-user text-yellow-600"></i>
+                            <div v-if="selectedPlatform === 'sleeper'" class="flex items-center space-x-2">
+                                <label class="text-sm text-gray-700">Draft Slot:</label>
+                                <input v-model.number="userDraftSlot" 
+                                       type="number" 
+                                       min="1" 
+                                       max="12"
+                                       placeholder="1-12"
+                                       class="w-20 px-2 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
+                            </div>
+                            <div v-else-if="selectedPlatform === 'yahoo-snake'" class="flex items-center space-x-2">
+                                <label class="text-sm text-gray-700">Draft Position:</label>
+                                <input v-model.number="userDraftSlot" 
+                                       type="number" 
+                                       min="1" 
+                                       max="10"
+                                       placeholder="1-10"
+                                       class="w-20 px-2 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
+                            </div>
+                            <div v-else-if="selectedPlatform === 'sleeper-auction'" class="flex items-center space-x-2">
+                                <label class="text-sm text-gray-700">Team Name:</label>
+                                <input v-model="userTeamName" 
+                                       type="text" 
+                                       placeholder="Your team name"
+                                       class="px-3 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
+                            </div>
+                        </div>
+                        
+                        <!-- Connect Button -->
+                        <div class="flex justify-end">
+                            <button @click="connectToDraft" 
+                                    :disabled="!canConnect()"
+                                    class="px-4 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                                <i v-if="!connectingToDraft" class="fas fa-plug mr-1"></i>
+                                <i v-else class="fas fa-spinner fa-spin mr-1"></i>
+                                {{ connectingToDraft ? 'Connecting...' : 'Connect to Draft' }}
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2">
+                        <i class="fas fa-info-circle"></i>
+                        {{ getDraftUrlHelp() }}
+                        <span v-if="selectedPlatform === 'sleeper-auction'">
+                            | Enter your team name exactly as it appears in Sleeper
+                        </span>
+                        <span v-else>
+                            | Enter your draft position ({{ selectedPlatform === 'sleeper' ? '1-12' : '1-10' }})
+                        </span>
+                    </p>
+                </div>
+                
+                <!-- Draft Connected Status -->
+                <div v-if="selectedPlatform && draftConnected" class="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-check-circle text-green-600"></i>
+                            <span class="text-sm text-green-800 font-medium">Connected to Live Draft</span>
+                            <span class="text-xs text-gray-600">({{ draftUrl }})</span>
+                        </div>
+                        <button @click="disconnectFromDraft" 
+                                class="text-xs text-red-600 hover:text-red-700">
+                            <i class="fas fa-times mr-1"></i>Disconnect
+                        </button>
                     </div>
                 </div>
             </div>
@@ -127,7 +207,7 @@
                                 <span class="text-gray-600">Round:</span>
                                 <span class="font-semibold">{{ draftStatus.round }}</span>
                             </div>
-                            <div v-if="selectedPlatform === 'yahoo-auction'" class="flex justify-between">
+                            <div v-if="selectedPlatform === 'sleeper-auction'" class="flex justify-between">
                                 <span class="text-gray-600">Remaining Budget:</span>
                                 <span class="font-semibold text-green-600">${{ auctionBudget }}</span>
                             </div>
@@ -152,7 +232,7 @@
                                          :key="player.id"
                                          class="text-sm bg-gray-50 px-2 py-1 rounded">
                                         {{ player.name }}
-                                        <span v-if="selectedPlatform === 'yahoo-auction'" 
+                                        <span v-if="selectedPlatform === 'sleeper-auction'" 
                                               class="text-gray-500 ml-1">(${{ player.cost }})</span>
                                     </div>
                                     <div v-if="getRosterCount(position) === 0" 
@@ -255,7 +335,7 @@
                             <span v-else-if="selectedPlatform === 'yahoo-snake'">
                                 <i class="fas fa-info-circle"></i> Standard (Full PPR)
                             </span>
-                            <span v-else-if="selectedPlatform === 'yahoo-auction'">
+                            <span v-else-if="selectedPlatform === 'sleeper-auction'">
                                 <i class="fas fa-info-circle"></i> Standard (Half-PPR)
                             </span>
                         </div>
@@ -289,7 +369,7 @@
                                     </div>
                                     <div class="text-right">
                                         <div class="text-sm font-semibold">#{{ player.rank }}</div>
-                                        <div v-if="selectedPlatform === 'yahoo-auction'" 
+                                        <div v-if="selectedPlatform === 'sleeper-auction'" 
                                              class="text-sm text-green-600">${{ player.value }}</div>
                                     </div>
                                 </div>
@@ -384,11 +464,11 @@
                     </div>
                     
                     <div class="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition"
-                         @click="selectedPlatform = 'yahoo-auction'; switchPlatform()">
+                         @click="selectedPlatform = 'sleeper-auction'; switchPlatform()">
                         <div class="text-blue-600 text-4xl mb-4">
                             <i class="fas fa-gavel"></i>
                         </div>
-                        <h3 class="text-xl font-semibold mb-2">Yahoo Auction Draft</h3>
+                        <h3 class="text-xl font-semibold mb-2">Sleeper Auction Draft</h3>
                         <p class="text-gray-600">12-team, Half-PPR, $200</p>
                         <p class="text-sm text-gray-500 mt-2">Draft: Aug 24</p>
                     </div>
@@ -410,6 +490,14 @@
                     // Connection
                     ws: null,
                     connectionStatus: 'disconnected',
+                    
+                    // Draft connection
+                    draftUrl: '',
+                    draftConnected: false,
+                    connectingToDraft: false,
+                    draftMonitorInterval: null,
+                    userDraftSlot: null,  // For Sleeper and Yahoo Snake
+                    userTeamName: '',     // For Sleeper Auction
                     
                     // Draft status
                     draftStatus: {
@@ -434,7 +522,6 @@
                     showProactive: false,
                     proactiveRecommendation: null,
                     proactiveLoading: false,
-                    draftConnected: false,
                     proactiveRecommendations: '',
                     
                     // Players
@@ -477,8 +564,8 @@
                             scoring: 'Full PPR',
                             superflex: false
                         },
-                        'yahoo-auction': {
-                            name: 'Yahoo Auction League',
+                        'sleeper-auction': {
+                            name: 'Sleeper Auction League',
                             description: '12-team, Half-PPR, $200 Budget',
                             draftDate: 'Auction Draft',
                             teams: 12,
@@ -575,7 +662,7 @@
                             position: player.player_position_id || player.position,
                             team: player.player_team_id || player.team,
                             rank: player.rank_ecr || player.rank || 999,
-                            value: this.selectedPlatform === 'yahoo-auction' ? 
+                            value: this.selectedPlatform === 'sleeper-auction' ? 
                                    player.auction_value || this.calculateAuctionValue(player.rank_ecr || player.rank || 999) : null
                         }));
                         
@@ -699,7 +786,7 @@
                     this.roster = data.roster || this.roster;
                     this.recentPicks = data.recentPicks || this.recentPicks;
                     
-                    if (this.selectedPlatform === 'yahoo-auction' && data.budget !== undefined) {
+                    if (this.selectedPlatform === 'sleeper-auction' && data.budget !== undefined) {
                         this.auctionBudget = data.budget;
                     }
                 },
@@ -716,7 +803,7 @@
                     const limits = {
                         'sleeper': { QB: 3, RB: 6, WR: 6, TE: 2, DST: 1, K: 1 },
                         'yahoo-snake': { QB: 2, RB: 5, WR: 5, TE: 2, DST: 1, K: 1 },
-                        'yahoo-auction': { QB: 2, RB: 5, WR: 5, TE: 2, DST: 1, K: 0 }
+                        'sleeper-auction': { QB: 2, RB: 5, WR: 5, TE: 2, DST: 1, K: 0 }
                     };
                     return limits[this.selectedPlatform]?.[position] || 0;
                 },
@@ -735,6 +822,129 @@
                     if (response && response.content) {
                         this.addMessage('assistant', response.content);
                     }
+                },
+                
+                getDraftUrlPlaceholder() {
+                    const placeholders = {
+                        'sleeper': 'Enter Sleeper draft URL (e.g., sleeper.com/draft/nfl/...)',
+                        'yahoo-snake': 'Enter Yahoo draft URL (e.g., football.fantasysports.yahoo.com/f1/...)',
+                        'sleeper-auction': 'Enter Sleeper auction URL (e.g., sleeper.com/draft/...)'
+                    };
+                    return placeholders[this.selectedPlatform] || 'Enter draft URL';
+                },
+                
+                getDraftUrlHelp() {
+                    const help = {
+                        'sleeper': 'Copy the URL from your Sleeper draft room',
+                        'yahoo-snake': 'Copy the URL from your Yahoo snake draft room',
+                        'sleeper-auction': 'Copy the URL from your Sleeper auction draft room'
+                    };
+                    return help[this.selectedPlatform] || 'Enter the URL of your live draft';
+                },
+                
+                canConnect() {
+                    // Check if we have a draft URL
+                    if (!this.draftUrl) return false;
+                    
+                    // Check if we have team identification
+                    if (this.selectedPlatform === 'sleeper-auction') {
+                        return this.userTeamName && this.userTeamName.trim().length > 0;
+                    } else {
+                        // Sleeper and Yahoo Snake need draft slot
+                        const maxSlot = this.selectedPlatform === 'sleeper' ? 12 : 10;
+                        return this.userDraftSlot && this.userDraftSlot >= 1 && this.userDraftSlot <= maxSlot;
+                    }
+                },
+                
+                async connectToDraft() {
+                    if (!this.canConnect()) return;
+                    
+                    this.connectingToDraft = true;
+                    
+                    try {
+                        const requestData = {
+                            platform: this.selectedPlatform,
+                            url: this.draftUrl
+                        };
+                        
+                        // Add team identification
+                        if (this.selectedPlatform === 'sleeper-auction') {
+                            requestData.team_name = this.userTeamName;
+                        } else {
+                            requestData.draft_slot = this.userDraftSlot;
+                        }
+                        
+                        const response = await fetch('/api/connect-draft', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestData)
+                        });
+                        
+                        const data = await response.json();
+                        if (data.status === 'success') {
+                            this.draftConnected = true;
+                            const teamInfo = this.selectedPlatform === 'sleeper-auction' 
+                                ? `Team: ${this.userTeamName}`
+                                : `Slot: ${this.userDraftSlot}`;
+                            this.addMessage('system', `Connected to ${this.platformInfo.name} draft! (${teamInfo})`);
+                            
+                            // Start monitoring draft
+                            this.startDraftMonitoring();
+                        } else {
+                            this.addMessage('system', `Failed to connect: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Draft connection error:', error);
+                        this.addMessage('system', 'Failed to connect to draft. Please check the URL and try again.');
+                    } finally {
+                        this.connectingToDraft = false;
+                    }
+                },
+                
+                disconnectFromDraft() {
+                    this.draftConnected = false;
+                    this.draftUrl = '';
+                    this.userDraftSlot = null;
+                    this.userTeamName = '';
+                    
+                    // Stop monitoring
+                    if (this.draftMonitorInterval) {
+                        clearInterval(this.draftMonitorInterval);
+                        this.draftMonitorInterval = null;
+                    }
+                    
+                    this.addMessage('system', 'Disconnected from draft');
+                },
+                
+                startDraftMonitoring() {
+                    // Poll for draft updates every 5 seconds
+                    this.draftMonitorInterval = setInterval(async () => {
+                        try {
+                            const response = await fetch('/api/draft-status', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    platform: this.selectedPlatform,
+                                    url: this.draftUrl
+                                })
+                            });
+                            
+                            const data = await response.json();
+                            if (data.status === 'success') {
+                                // Update draft status
+                                if (data.draftStatus) {
+                                    this.updateDraftStatus(data);
+                                }
+                                
+                                // Check for proactive recommendations
+                                if (data.recommendation) {
+                                    this.proactiveRecommendation = data.recommendation;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Draft monitoring error:', error);
+                        }
+                    }, 5000); // Poll every 5 seconds
                 }
             },
             
@@ -746,6 +956,9 @@
             beforeUnmount() {
                 if (this.ws) {
                     this.ws.close();
+                }
+                if (this.draftMonitorInterval) {
+                    clearInterval(this.draftMonitorInterval);
                 }
             }
         }).mount('#app');

@@ -376,7 +376,7 @@ with open('players.json') as f:
 - **League ID**: 475629, Team ID: 5
 - **Special**: Return specialists have added value
 
-### League 3: Yahoo Auction (Aug 24, 2025)
+### League 3: Sleeper Auction (Aug 24, 2025) - Moved from Yahoo
 - **Scoring Format**: Half-PPR (0.5 points per reception)
 - **Roster Format**: QB/WR/WR/RB/RB/TE/W-R-T/DEF + 5 Bench + IR (NO KICKER)
 - **Key Rules**: 4PT passing TDs, $200 budget, No kicker position

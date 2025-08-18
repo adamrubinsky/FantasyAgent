@@ -1,657 +1,406 @@
 """
-Fantasy Football Draft Assistant - Live Draft Monitor
-Day 2 (Aug 6): Real-time draft tracking with 5-second polling
+Draft Monitor for all platforms
+Handles real-time draft monitoring for Sleeper, Yahoo Snake, and Yahoo Auction
 """
 
 import asyncio
+import aiohttp
 import json
-import os
+import re
+from typing import Dict, Any, Optional, List
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
-from rich.console import Console
-from rich.live import Live
-from rich.table import Table
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.text import Text
+import logging
 
-from api.sleeper_client import SleeperClient
-from core.pre_computation import PreComputationEngine
+logger = logging.getLogger(__name__)
 
 
 class DraftMonitor:
-    """
-    Real-time draft monitoring system that polls Sleeper API every 5 seconds
+    """Base class for draft monitoring"""
     
-    Key Features:
-    - Detects new picks instantly (within 5 seconds)
-    - Tracks draft state and user's turn
-    - Shows live available players
-    - Notifies when it's your turn to pick
-    - Maintains draft history for analysis
+    def __init__(self):
+        self.connected_drafts = {}  # Store draft connections by platform
+        
+    async def connect(self, platform: str, url: str, draft_slot: Optional[int] = None, 
+                      team_name: Optional[str] = None) -> Dict[str, Any]:
+        """Connect to a draft based on platform"""
+        
+        # Extract draft ID from URL
+        draft_id = self._extract_draft_id(platform, url)
+        if not draft_id:
+            return {"status": "error", "message": "Invalid draft URL"}
+        
+        # Store connection info with team identification
+        self.connected_drafts[platform] = {
+            "url": url,
+            "draft_id": draft_id,
+            "connected_at": datetime.now().isoformat(),
+            "platform": platform,
+            "draft_slot": draft_slot,  # User's draft position (1-12)
+            "team_name": team_name     # User's team name for auction
+        }
+        
+        logger.info(f"Connected to {platform} draft: {draft_id}, slot: {draft_slot}, team: {team_name}")
+        
+        return {
+            "status": "success",
+            "draft_id": draft_id,
+            "platform": platform,
+            "draft_slot": draft_slot,
+            "team_name": team_name
+        }
     
-    This is the core component for draft day - it needs to be rock solid!
-    """
-    
-    def __init__(self, username: str, league_id: str, anthropic_api_key: str = None, draft_id: str = None):
-        self.username = username
-        self.league_id = league_id
-        self.anthropic_api_key = anthropic_api_key
-        self.console = Console()
+    def _extract_draft_id(self, platform: str, url: str) -> Optional[str]:
+        """Extract draft ID from URL based on platform"""
         
-        # Draft state tracking
-        self.draft_id: Optional[str] = draft_id  # Can be provided directly for mock drafts
-        self.last_pick_count = 0
-        self.user_roster_id: Optional[int] = None
-        self.current_pick: Optional[int] = None
-        self.total_picks: Optional[int] = None
-        self.picks_history: List[Dict[str, Any]] = []
-        
-        # Cache directory for storing draft state
-        self.cache_dir = Path(__file__).parent.parent / "data"
-        self.draft_state_file = self.cache_dir / "draft_state.json"
-        
-        # Sleeper client for API calls
-        self.client: Optional[SleeperClient] = None
-        
-        # Pre-computation engine (optional)
-        self.precomp_engine: Optional[PreComputationEngine] = None
-        self.precomp_enabled = False
-        
-        # Track which players have been drafted (for quick lookups)
-        self.drafted_players: Set[str] = set()
-        
-    async def __aenter__(self):
-        """Async context manager entry - initialize Sleeper client and pre-computation engine"""
-        self.client = SleeperClient(self.username, self.league_id)
-        await self.client.__aenter__()
-        
-        # Initialize pre-computation engine if API key provided
-        if self.anthropic_api_key:
-            try:
-                self.precomp_engine = PreComputationEngine(
-                    self.username, self.league_id, self.anthropic_api_key
-                )
-                await self.precomp_engine.__aenter__()
+        if platform in ["sleeper", "sleeper-auction"]:
+            # Sleeper URL: https://sleeper.com/draft/nfl/123456789
+            match = re.search(r'sleeper\.com/draft/nfl/(\d+)', url)
+            if match:
+                return match.group(1)
                 
-                # Initialize draft context for pre-computation
-                success = await self.precomp_engine.initialize_draft_context()
-                if success:
-                    self.precomp_enabled = True
-                    self.console.print("🎯 Pre-computation engine enabled", style="green")
-                else:
-                    self.console.print("⚠️ Pre-computation engine initialization failed", style="yellow")
-            except Exception as e:
-                self.console.print(f"⚠️ Pre-computation engine error: {e}", style="yellow")
+        elif platform == "yahoo-snake":
+            # Yahoo URL: https://football.fantasysports.yahoo.com/f1/123456/draft
+            match = re.search(r'yahoo\.com/f\d+/(\d+)', url)
+            if match:
+                return match.group(1)
         
-        return self
-        
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - cleanup Sleeper client and pre-computation engine"""
-        if self.precomp_engine:
-            await self.precomp_engine.__aexit__(exc_type, exc_val, exc_tb)
-        if self.client:
-            await self.client.__aexit__(exc_type, exc_val, exc_tb)
+        return None
     
-    async def initialize_draft(self) -> bool:
-        """
-        Initialize draft monitoring by getting league and draft info
+    async def get_draft_status(self, platform: str, url: str = None) -> Dict[str, Any]:
+        """Get current draft status for a platform"""
         
-        This method:
-        1. Gets league information from Sleeper
-        2. Finds the draft ID for this league
-        3. Gets initial draft state (picks made so far)
-        4. Identifies the user's roster ID for turn tracking
-        5. Loads any cached draft state from previous sessions
+        if platform not in self.connected_drafts:
+            return {"status": "error", "message": "Not connected to draft"}
         
-        Returns:
-            bool: True if draft found and initialized successfully
-        """
+        draft_info = self.connected_drafts[platform]
+        
+        # Platform-specific status fetching
+        if platform == "sleeper":
+            return await self._get_sleeper_status(draft_info["draft_id"])
+        elif platform == "sleeper-auction":
+            return await self._get_sleeper_auction_status(draft_info["draft_id"])
+        elif platform == "yahoo-snake":
+            return await self._get_yahoo_snake_status(draft_info["draft_id"])
+        
+        return {"status": "error", "message": "Unknown platform"}
+    
+    async def _get_sleeper_status(self, draft_id: str) -> Dict[str, Any]:
+        """Get Sleeper draft status"""
+        
         try:
-            # Step 1: Get league information (skip if draft_id already provided)
-            self.console.print("🔍 Initializing draft monitor...", style="yellow")
+            # Sleeper API endpoints
+            draft_url = f"https://api.sleeper.app/v1/draft/{draft_id}"
+            picks_url = f"https://api.sleeper.app/v1/draft/{draft_id}/picks"
             
-            if not self.draft_id:
-                # Regular league draft - find draft ID from league
-                league_info = await self.client.get_league_info()
-                self.draft_id = league_info.get('draft_id')
-                if not self.draft_id:
-                    self.console.print("❌ No draft found for this league", style="red")
-                    return False
-            else:
-                # Mock draft mode - draft_id already provided
-                self.console.print(f"🎮 Using provided draft ID: {self.draft_id}", style="cyan")
-            
-            # Step 3: Get draft information first
-            draft_info = await self.client.get_draft_info(self.draft_id)
-            draft_order = draft_info.get('draft_order', {})
-            
-            # First priority: Get from league rosters if it's a regular league
-            user_info = await self.client.get_user()
-            user_id = user_info.get('user_id')
-            
-            if self.league_id:
-                try:
-                    rosters = await self.client.get_league_rosters()
-                    
-                    for roster in rosters:
-                        if roster.get('owner_id') == user_id:
-                            self.user_roster_id = roster.get('roster_id')
-                            self.console.print(f"👤 Found user in roster {self.user_roster_id}", style="green")
-                            break
-                except:
-                    pass  # Might fail for mock drafts
-            
-            # Second priority: For mock drafts, try to find user in draft order
-            if self.user_roster_id is None and draft_order:
-                # Check if user is in draft_order
-                for roster_id, draft_user_id in draft_order.items():
-                    if draft_user_id == user_id:
-                        self.user_roster_id = int(roster_id)
-                        self.console.print(f"🎮 Found user in draft order at roster {self.user_roster_id}", style="cyan")
-                        break
+            # Create session with SSL verification disabled (macOS certificate issue)
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                # Get draft info
+                async with session.get(draft_url) as resp:
+                    if resp.status != 200:
+                        return {"status": "error", "message": "Failed to fetch draft info"}
+                    draft_data = await resp.json()
                 
-                # If not found in draft order, assign first available slot for mock drafts
-                if self.user_roster_id is None:
-                    # For mock drafts, just pick the first empty slot
-                    for i in range(1, 13):  # Standard 12-team draft
-                        if str(i) not in draft_order or draft_order[str(i)] is None:
-                            self.user_roster_id = i
-                            self.console.print(f"📍 Assigned to draft slot #{i} in mock draft", style="cyan")
-                            break
+                # Get picks
+                async with session.get(picks_url) as resp:
+                    if resp.status != 200:
+                        picks = []
+                    else:
+                        picks = await resp.json()
             
-            if self.user_roster_id is None:
-                self.console.print("⚠️ Could not determine your draft position - will monitor all picks", style="yellow")
-                self.user_roster_id = 1  # Default to position 1 for monitoring
+            # Extract relevant info
+            current_pick = len(picks) + 1
+            total_roster_spots = draft_data.get("settings", {}).get("slots_wr", 0) + \
+                               draft_data.get("settings", {}).get("slots_rb", 0) + \
+                               draft_data.get("settings", {}).get("slots_qb", 0) + \
+                               draft_data.get("settings", {}).get("slots_te", 0) + \
+                               draft_data.get("settings", {}).get("slots_flex", 0) + \
+                               draft_data.get("settings", {}).get("slots_super_flex", 0) + \
+                               draft_data.get("settings", {}).get("slots_k", 0) + \
+                               draft_data.get("settings", {}).get("slots_def", 0) + \
+                               draft_data.get("settings", {}).get("slots_bn", 0)
             
-            # Step 4: Calculate total picks based on draft settings
-            draft_settings = draft_info.get('settings', {})
-            total_teams = draft_settings.get('teams', 12)  # Default to 12 teams
-            total_rounds = draft_settings.get('rounds', 16)  # Default to 16 rounds
-            self.total_picks = total_teams * total_rounds
+            teams = draft_data.get("settings", {}).get("teams", 12)
+            current_round = ((current_pick - 1) // teams) + 1
             
-            # Step 5: Get current draft picks to establish baseline
-            picks = await self.client.get_draft_picks(self.draft_id)
-            self.last_pick_count = len(picks)
-            self.picks_history = picks
+            # Determine if it's user's turn using draft_slot
+            draft_info = self.connected_drafts.get("sleeper", {})
+            user_slot = draft_info.get("draft_slot")
+            my_turn = False
             
-            # Build set of drafted players for fast lookups
-            self.drafted_players = {
-                pick['player_id'] for pick in picks 
-                if pick.get('player_id')
-            }
+            if user_slot:
+                # Snake draft logic - odd rounds go 1->12, even rounds go 12->1
+                if current_round % 2 == 1:  # Odd round
+                    current_drafter = ((current_pick - 1) % teams) + 1
+                else:  # Even round
+                    current_drafter = teams - ((current_pick - 1) % teams)
+                my_turn = (current_drafter == user_slot)
             
-            # Step 6: Determine current pick number
-            self.current_pick = len(picks) + 1 if len(picks) < self.total_picks else self.total_picks
-            
-            # Step 7: Calculate picks until user turn
-            self.picks_until_user_turn = self._get_picks_until_user_turn(self.current_pick)
-            
-            # Step 7: Load any cached state
-            await self._load_draft_state()
-            
-            self.console.print(f"✅ Draft monitor initialized", style="green")
-            self.console.print(f"   Draft ID: {self.draft_id}")
-            self.console.print(f"   Your Roster ID: {self.user_roster_id}")
-            self.console.print(f"   Current Pick: {self.current_pick}/{self.total_picks}")
-            self.console.print(f"   Picks Made: {len(picks)}")
-            
-            return True
-            
-        except Exception as e:
-            self.console.print(f"❌ Error initializing draft: {e}", style="red")
-            return False
-    
-    async def _load_draft_state(self):
-        """Load cached draft state from previous session if it exists"""
-        if self.draft_state_file.exists():
-            try:
-                with open(self.draft_state_file, 'r') as f:
-                    cached_state = json.load(f)
-                    
-                # Only load if it's the same draft
-                if cached_state.get('draft_id') == self.draft_id:
-                    self.console.print("📁 Loaded previous draft state from cache", style="dim")
-                    
-            except Exception as e:
-                self.console.print(f"⚠️ Could not load cached state: {e}", style="yellow")
-    
-    async def _save_draft_state(self):
-        """Save current draft state to cache for persistence"""
-        try:
-            state = {
-                'draft_id': self.draft_id,
-                'last_updated': datetime.now().isoformat(),
-                'current_pick': self.current_pick,
-                'last_pick_count': self.last_pick_count,
-                'user_roster_id': self.user_roster_id,
-                'picks_count': len(self.picks_history)
-            }
-            
-            with open(self.draft_state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-                
-        except Exception as e:
-            self.console.print(f"⚠️ Could not save draft state: {e}", style="yellow")
-    
-    async def check_for_new_picks(self) -> List[Dict[str, Any]]:
-        """
-        Check for new picks since last poll
-        
-        This is the core monitoring method that:
-        1. Gets current picks from Sleeper
-        2. Compares with our last known state
-        3. Identifies any new picks made
-        4. Updates our internal tracking
-        5. Returns list of new picks for processing
-        
-        Returns:
-            List of new pick dictionaries, empty if no new picks
-        """
-        try:
-            # Get current picks from API
-            current_picks = await self.client.get_draft_picks(self.draft_id)
-            current_count = len(current_picks)
-            
-            # Check if we have new picks
-            if current_count > self.last_pick_count:
-                # We have new picks! Find which ones are new
-                new_picks = current_picks[self.last_pick_count:]
-                
-                # Update our tracking
-                self.last_pick_count = current_count
-                self.picks_history = current_picks
-                self.current_pick = current_count + 1 if current_count < self.total_picks else self.total_picks
-                
-                # Update drafted players set
-                for pick in new_picks:
-                    if pick.get('player_id'):
-                        self.drafted_players.add(pick['player_id'])
-                
-                # Save state
-                await self._save_draft_state()
-                
-                return new_picks
-            
-            return []  # No new picks
-            
-        except Exception as e:
-            self.console.print(f"❌ Error checking for picks: {e}", style="red")
-            return []
-    
-    def is_user_turn(self) -> bool:
-        """
-        Check if it's currently the user's turn to pick
-        
-        This analyzes the draft order and current pick to determine
-        if the user should be making a selection right now.
-        
-        Returns:
-            bool: True if it's the user's turn
-        """
-        if not self.current_pick or not self.total_picks:
-            return False
-        
-        # Get the most recent pick to see whose turn it is
-        if self.picks_history:
-            # Look at draft order - this is complex because of snake draft
-            # For now, we'll use a simpler check: if current pick roster_id matches user
-            try:
-                # In a snake draft, we need to calculate which roster picks at this position
-                # This is a simplified version - real implementation would need draft order
-                
-                # For now, return False unless we're sure
-                return False  # TODO: Implement proper turn detection
-                
-            except Exception:
-                return False
-        
-        return False
-    
-    def get_picks_until_user_turn(self) -> int:
-        """
-        Calculate how many picks until it's the user's turn
-        
-        This helps with pre-computation - we can start analyzing
-        when we're 3 picks away from our turn.
-        
-        Returns:
-            int: Number of picks until user's turn, -1 if unknown
-        """
-        # TODO: Implement based on draft order and snake draft logic
-        # For now, return unknown
-        return -1
-    
-    async def get_recent_picks_summary(self, count: int = 5) -> List[Dict[str, Any]]:
-        """
-        Get a summary of the most recent picks with player names
-        
-        Args:
-            count: Number of recent picks to return
-            
-        Returns:
-            List of pick summaries with player names and details
-        """
-        if not self.picks_history:
-            return []
-        
-        # Get the most recent picks
-        recent_picks = self.picks_history[-count:] if len(self.picks_history) >= count else self.picks_history
-        
-        # Get player data to add names
-        players = await self.client.get_all_players()
-        
-        # Build summary with player names
-        summary = []
-        for pick in recent_picks:
-            player_id = pick.get('player_id')
-            if player_id and player_id in players:
-                player_data = players[player_id]
-                name = f"{player_data.get('first_name', '')} {player_data.get('last_name', '')}".strip()
-                positions = "/".join(player_data.get('fantasy_positions', []))
-                team = player_data.get('team', 'FA')
-                
-                summary.append({
-                    'pick_no': pick.get('pick_no', 0),
-                    'round': pick.get('round', 0),
-                    'player_name': name,
-                    'positions': positions,
-                    'team': team,
-                    'roster_id': pick.get('roster_id')
+            # Get recent picks
+            recent_picks = []
+            for pick in picks[-5:]:  # Last 5 picks
+                recent_picks.append({
+                    "player_id": pick.get("player_id"),
+                    "picked_by": pick.get("picked_by"),
+                    "pick_no": pick.get("pick_no"),
+                    "round": pick.get("round"),
+                    "metadata": pick.get("metadata", {})
                 })
-        
-        return summary
+            
+            return {
+                "status": "success",
+                "draftStatus": {
+                    "currentPick": current_pick,
+                    "round": current_round,
+                    "totalPicks": teams * total_roster_spots,
+                    "teams": teams,
+                    "myTurn": my_turn,
+                    "userSlot": user_slot
+                },
+                "recentPicks": recent_picks,
+                "draftType": "SUPERFLEX" if draft_data.get("settings", {}).get("slots_super_flex", 0) > 0 else "STANDARD"
+            }
+            
+        except Exception as e:
+            logger.error(f"Sleeper draft status error: {e}")
+            return {"status": "error", "message": str(e)}
     
-    def create_draft_status_display(self) -> Panel:
-        """
-        Create a rich display panel showing current draft status
+    async def _get_yahoo_snake_status(self, draft_id: str) -> Dict[str, Any]:
+        """Get Yahoo snake draft status"""
         
-        Returns:
-            Rich Panel with current draft information
-        """
-        if not self.draft_id:
-            return Panel("Draft not initialized", style="red")
+        # Note: Yahoo doesn't have a public API for draft status
+        # In production, you'd need to use web scraping or OAuth
+        # For now, return mock data
         
-        # Create status text
-        status_lines = [
-            f"Draft ID: {self.draft_id}",
-            f"Pick: {self.current_pick}/{self.total_picks}",
-            f"Your Roster: #{self.user_roster_id}",
-            f"Picks Made: {len(self.picks_history)}",
-        ]
+        # Get user's draft slot for Yahoo Snake
+        draft_info = self.connected_drafts.get("yahoo-snake", {})
+        user_slot = draft_info.get("draft_slot")
         
-        # Add turn indicator
-        if self.is_user_turn():
-            status_lines.append("🚨 YOUR TURN TO PICK!")
-            panel_style = "bold red"
-        else:
-            picks_until = self.get_picks_until_user_turn()
-            if picks_until > 0:
-                status_lines.append(f"⏳ {picks_until} picks until your turn")
-            panel_style = "blue"
+        # Mock data with user slot logic
+        current_pick = 25
+        teams = 10
+        current_round = 3
         
-        status_text = "\n".join(status_lines)
+        # Determine if it's user's turn (snake draft logic)
+        my_turn = False
+        if user_slot:
+            if current_round % 2 == 1:  # Odd round
+                current_drafter = ((current_pick - 1) % teams) + 1
+            else:  # Even round
+                current_drafter = teams - ((current_pick - 1) % teams)
+            my_turn = (current_drafter == user_slot)
         
-        return Panel(
-            status_text,
-            title="📊 Draft Status",
-            style=panel_style
-        )
+        return {
+            "status": "success",
+            "draftStatus": {
+                "currentPick": current_pick,
+                "round": current_round,
+                "nextPick": 28,
+                "totalPicks": 160,
+                "teams": teams,
+                "myTurn": my_turn,
+                "userSlot": user_slot
+            },
+            "recentPicks": [
+                {"player": "Justin Jefferson", "team": 3, "pick": 21},
+                {"player": "Davante Adams", "team": 4, "pick": 22},
+                {"player": "Travis Kelce", "team": 5, "pick": 23},
+                {"player": "Stefon Diggs", "team": 6, "pick": 24}
+            ],
+            "message": "Yahoo API integration pending - using mock data"
+        }
     
-    async def create_recent_picks_display(self) -> Panel:
-        """
-        Create a display showing recent picks made
-        
-        Returns:
-            Rich Panel with recent picks table
-        """
-        recent_picks = await self.get_recent_picks_summary(5)
-        
-        if not recent_picks:
-            return Panel("No picks made yet", title="📝 Recent Picks")
-        
-        # Create table of recent picks
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Pick", width=4)
-        table.add_column("Player", width=20)
-        table.add_column("Pos", width=6)
-        table.add_column("Team", width=4)
-        
-        for pick in recent_picks:
-            table.add_row(
-                str(pick['pick_no']),
-                pick['player_name'],
-                pick['positions'],
-                pick['team']
-            )
-        
-        return Panel(table, title="📝 Recent Picks")
-    
-    async def start_monitoring(self, show_available: bool = True, position_filter: str = None, enhanced: bool = False):
-        """
-        Start the real-time draft monitoring loop
-        
-        This is the main method that:
-        1. Runs continuously during the draft
-        2. Polls every 5 seconds for new picks
-        3. Updates the display in real-time
-        4. Notifies when new picks are made
-        5. Shows when it's user's turn
-        
-        Args:
-            show_available: Whether to show available players table
-            position_filter: Filter available players by position
-        """
-        if not await self.initialize_draft():
-            return
-        
-        self.console.print("\n🚀 Starting draft monitor - Press Ctrl+C to stop\n", style="bold green")
+    async def _get_sleeper_auction_status(self, draft_id: str) -> Dict[str, Any]:
+        """Get Sleeper auction draft status"""
         
         try:
-            # Create live display that updates automatically
-            with Live(console=self.console, refresh_per_second=1) as live:
+            # Sleeper API endpoints for auction
+            draft_url = f"https://api.sleeper.app/v1/draft/{draft_id}"
+            picks_url = f"https://api.sleeper.app/v1/draft/{draft_id}/picks"
+            
+            # Create session with SSL verification disabled (macOS certificate issue)
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                # Get draft info
+                async with session.get(draft_url) as resp:
+                    if resp.status != 200:
+                        return {"status": "error", "message": "Failed to fetch draft info"}
+                    draft_data = await resp.json()
                 
-                while True:  # Run until user stops
-                    try:
-                        # Check for new picks
-                        new_picks = await self.check_for_new_picks()
-                        
-                        # Alert for new picks and trigger pre-computation
-                        if new_picks:
-                            for pick in new_picks:
-                                players = await self.client.get_all_players()
-                                player_id = pick.get('player_id')
-                                if player_id and player_id in players:
-                                    player_data = players[player_id]
-                                    name = f"{player_data.get('first_name', '')} {player_data.get('last_name', '')}".strip()
-                                    positions = "/".join(player_data.get('fantasy_positions', []))
-                                    team = player_data.get('team', 'FA')
-                                    
-                                    self.console.print(
-                                        f"🚨 NEW PICK: {name} ({positions}) - {team} [Pick #{pick.get('pick_no', '?')}]",
-                                        style="bold yellow"
-                                    )
-                            
-                            # Check if we should trigger pre-computation
-                            if self.precomp_enabled and self.current_pick:
-                                should_precompute = await self.precomp_engine.should_start_precomputation(self.current_pick)
-                                if should_precompute:
-                                    # Run pre-computation in background (don't block display)
-                                    asyncio.create_task(self._run_background_precomputation())
-                                
-                                # Invalidate cache if picks affect recommendations
-                                if hasattr(self.precomp_engine, 'cached_recommendations') and self.precomp_engine.cached_recommendations:
-                                    self.precomp_engine.invalidate_cache("New picks made")
-                        
-                        # Create display panels
-                        draft_status = self.create_draft_status_display()
-                        recent_picks = await self.create_recent_picks_display()
-                        
-                        # Create main display
-                        main_display = Columns([draft_status, recent_picks])
-                        
-                        # Add available players if requested
-                        if show_available:
-                            available_players = await self._create_available_players_display(position_filter, enhanced)
-                            display_content = [main_display, available_players]
-                        else:
-                            display_content = [main_display]
-                        
-                        # Update live display
-                        from rich.console import Group
-                        live.update(Group(*display_content))
-                        
-                        # Wait 5 seconds before next poll
-                        await asyncio.sleep(5)
-                        
-                    except KeyboardInterrupt:
-                        break
-                    except Exception as e:
-                        self.console.print(f"❌ Error in monitoring loop: {e}", style="red")
-                        await asyncio.sleep(5)  # Wait before retrying
-        
-        except KeyboardInterrupt:
-            self.console.print("\n👋 Draft monitoring stopped", style="yellow")
-        finally:
-            await self._save_draft_state()
-    
-    def _get_picks_until_user_turn(self, current_pick: int) -> Optional[int]:
-        """Calculate how many picks until it's the user's turn"""
-        if not self.user_roster_id or not current_pick:
-            return None
+                # Get picks (purchased players in auction)
+                async with session.get(picks_url) as resp:
+                    if resp.status != 200:
+                        picks = []
+                    else:
+                        picks = await resp.json()
             
-        # Calculate which pick number corresponds to user's turn
-        # In snake draft, roster positions alternate each round
-        round_num = ((current_pick - 1) // 12) + 1  # Assuming 12 teams
-        pick_in_round = ((current_pick - 1) % 12) + 1
-        
-        if round_num % 2 == 1:  # Odd rounds: 1, 3, 5...
-            user_pick_in_round = self.user_roster_id
-        else:  # Even rounds: 2, 4, 6...
-            user_pick_in_round = 13 - self.user_roster_id
-        
-        # Calculate user's next pick
-        if pick_in_round <= user_pick_in_round:
-            # User hasn't picked this round yet
-            user_next_pick = ((round_num - 1) * 12) + user_pick_in_round
-        else:
-            # User already picked this round, next pick is next round
-            next_round = round_num + 1
-            if next_round % 2 == 1:
-                next_user_pick_in_round = self.user_roster_id
-            else:
-                next_user_pick_in_round = 13 - self.user_roster_id
-            user_next_pick = ((next_round - 1) * 12) + next_user_pick_in_round
-        
-        picks_until_user = user_next_pick - current_pick
-        return picks_until_user if picks_until_user >= 0 else None
-    
-    async def _create_available_players_display(self, position_filter: str = None, enhanced: bool = False) -> Panel:
-        """Create display panel for available players with optional enhanced data"""
-        try:
-            available_players = await self.client.get_available_players(self.draft_id, position_filter, enhanced)
+            # Get user's team info
+            draft_info = self.connected_drafts.get("sleeper-auction", {})
+            user_team = draft_info.get("team_name")
             
-            if not available_players:
-                return Panel("No available players found", title="🔍 Available Players")
+            # Parse auction-specific data
+            draft_type = draft_data.get("type", "snake")
+            if draft_type != "auction":
+                # It's actually a snake draft, not auction
+                return {"status": "error", "message": "This is not an auction draft"}
             
-            # Create table with enhanced columns if requested
-            table = Table(show_header=True, header_style="bold cyan")
-            table.add_column("Rank", width=4)
-            table.add_column("Player", width=16)
-            table.add_column("Pos", width=4)
-            table.add_column("Team", width=4)
+            # Get draft settings
+            settings = draft_data.get("settings", {})
+            budget = settings.get("budget", 200)  # Default $200
+            teams = settings.get("teams", 12)
             
-            if enhanced:
-                table.add_column("ADP", width=5, style="magenta")
-                table.add_column("Bye", width=3, style="yellow")
-                table.add_column("P/O", width=4, style="red")  # Playoff Outlook abbreviated
-                table.add_column("Score", width=5, style="bright_green")
-            else:
-                table.add_column("Exp", width=3)
+            # Log what we're getting from Sleeper
+            logger.info(f"Sleeper auction draft type: {draft_type}")
+            logger.info(f"Sleeper auction picks count: {len(picks)}")
+            logger.info(f"Draft data keys: {draft_data.keys()}")
+            if picks:
+                logger.info(f"Sample pick: {picks[0]}")
             
-            # Show top 10 available players
-            for player in available_players[:10]:
-                rank = str(player['rank']) if player['rank'] < 999 else "N/A"
-                positions = "/".join(player['positions'])
-                team = player['team'] or "FA"
+            # Calculate spent budgets per team
+            team_budgets = {i: budget for i in range(1, teams + 1)}
+            team_rosters = {i: [] for i in range(1, teams + 1)}
+            
+            for pick in picks:
+                team_id = pick.get("picked_by")
+                amount = pick.get("metadata", {}).get("amount", 1)
+                player_id = pick.get("player_id")
                 
-                if enhanced:
-                    adp = f"{player.get('adp', 0):.0f}" if player.get('adp') else 'N/A'
-                    bye_week = str(player.get('bye_week', 'N/A'))
-                    playoff = player.get('playoff_outlook', 'unk')[:3]  # Abbreviated
-                    fantasy_score = f"{player.get('fantasy_score', 0):.1f}"
-                    
-                    table.add_row(rank, player['name'], positions, team, adp, bye_week, playoff, fantasy_score)
+                if team_id and team_id in team_budgets:
+                    team_budgets[team_id] -= amount
+                    team_rosters[team_id].append({
+                        "player_id": player_id,
+                        "price": amount
+                    })
+            
+            # Get current nomination (last pick metadata might have it)
+            current_player = None
+            current_bid = 0
+            high_bidder = None
+            
+            if draft_data.get("metadata"):
+                # Current nomination info might be in draft metadata
+                current_player = draft_data["metadata"].get("current_nomination")
+                current_bid = draft_data["metadata"].get("current_bid", 0)
+                high_bidder = draft_data["metadata"].get("high_bidder")
+            
+            # Find user's team ID based on team name
+            # For mock drafts, try to match team name to a number or use it directly
+            user_team_name = draft_info.get("team_name", "1")
+            
+            # Try to parse team number from name (e.g., "Team 1" or just "1")
+            try:
+                if user_team_name.isdigit():
+                    user_team_id = int(user_team_name)
+                elif "team" in user_team_name.lower():
+                    # Extract number from "Team X" format
+                    import re
+                    match = re.search(r'\d+', user_team_name)
+                    user_team_id = int(match.group()) if match else 1
                 else:
-                    exp = f"{player['years_exp']}y" if player.get('years_exp') else "R"
-                    table.add_row(rank, player['name'], positions, team, exp)
+                    # Default to team 1 if can't parse
+                    user_team_id = 1
+            except:
+                user_team_id = 1
             
-            title_suffix = f" ({position_filter})" if position_filter else ""
-            title_suffix += " - Enhanced" if enhanced else ""
-            title = f"🔍 Available Players{title_suffix}"
+            logger.info(f"User team mapping: '{user_team_name}' -> Team {user_team_id}")
             
-            return Panel(table, title=title)
+            # Get user's budget and roster
+            my_budget = team_budgets.get(user_team_id, budget)
+            my_roster = team_rosters.get(user_team_id, [])
+            
+            # Calculate averages
+            avg_budget = sum(team_budgets.values()) / len(team_budgets)
+            
+            # Recent purchases (last 5)
+            recent_purchases = []
+            for pick in picks[-5:]:
+                amount = pick.get("metadata", {}).get("amount", 1)
+                recent_purchases.append({
+                    "player_id": pick.get("player_id"),
+                    "price": amount,
+                    "team": pick.get("picked_by")
+                })
+            
+            return {
+                "status": "success",
+                "draftType": "auction",
+                "draftStatus": {
+                    "currentPlayer": current_player,
+                    "currentBid": current_bid,
+                    "highBidder": high_bidder,
+                    "isMyBid": high_bidder == user_team_id,
+                    "myBudget": my_budget,
+                    "avgBudget": avg_budget,
+                    "totalBudget": budget,
+                    "teams": teams,
+                    "userTeam": user_team,
+                    "picksComplete": len(picks),
+                    "totalSlots": teams * 16  # Typical roster size
+                },
+                "myRoster": my_roster,
+                "recentPurchases": recent_purchases,
+                "teamBudgets": team_budgets
+            }
             
         except Exception as e:
-            return Panel(f"Error loading players: {e}", title="🔍 Available Players", style="red")
+            logger.error(f"Sleeper auction status error: {e}")
+            return {"status": "error", "message": str(e)}
     
-    async def _run_background_precomputation(self):
-        """Run pre-computation in background without blocking the UI"""
-        try:
-            if not self.precomp_enabled or not self.current_pick:
-                return
-            
-            self.console.print("🎯 Starting pre-computation analysis...", style="cyan")
-            await self.precomp_engine.run_precomputation(self.current_pick)
-            self.console.print("✅ Pre-computation complete - recommendations ready!", style="green")
-            
-        except Exception as e:
-            self.console.print(f"⚠️ Pre-computation failed: {e}", style="yellow")
-    
-    async def get_precomputed_recommendations(self) -> Optional[str]:
-        """Get pre-computed recommendations if available"""
-        if not self.precomp_enabled:
-            return None
+    async def get_proactive_recommendation(self, platform: str, draft_status: Dict) -> Optional[Dict]:
+        """Generate proactive recommendations based on draft status"""
         
-        cache_data = self.precomp_engine.get_cached_recommendations()
-        if cache_data:
-            return self.precomp_engine.format_quick_recommendations(cache_data)
+        if platform in ["sleeper", "sleeper-auction"]:
+            # Check if it's user's turn or almost user's turn
+            if draft_status.get("draftStatus", {}).get("myTurn"):
+                return {
+                    "title": "It's Your Pick!",
+                    "content": "Based on available players and your roster needs, consider targeting a WR or RB with pass-catching upside.",
+                    "action": "Draft Garrett Wilson",
+                    "actionText": "Get Recommendation"
+                }
+        
+        elif platform == "yahoo-snake":
+            current_pick = draft_status.get("draftStatus", {}).get("currentPick", 0)
+            next_pick = draft_status.get("draftStatus", {}).get("nextPick", 0)
+            
+            if next_pick - current_pick <= 3:
+                return {
+                    "title": "Your Pick Coming Up",
+                    "content": f"You pick in {next_pick - current_pick} selections. Start planning for a Full PPR target.",
+                    "action": None,
+                    "actionText": None
+                }
+        
+        elif platform == "sleeper-auction":
+            my_budget = draft_status.get("draftStatus", {}).get("myBudget", 200)
+            avg_budget = draft_status.get("draftStatus", {}).get("avgBudget", 200)
+            picks_complete = draft_status.get("draftStatus", {}).get("picksComplete", 0)
+            
+            # Recommend nomination strategy based on draft phase
+            if picks_complete < 50:  # Early phase
+                return {
+                    "title": "Nomination Strategy",
+                    "content": f"You have ${my_budget} (avg: ${avg_budget:.0f}). Nominate expensive QBs ($25-40) to drain budgets.",
+                    "action": "Nominate a QB",
+                    "actionText": "See QB Options"
+                }
+            elif my_budget > avg_budget + 20:  # Budget advantage
+                return {
+                    "title": "Budget Advantage!",
+                    "content": f"You have ${my_budget} vs avg ${avg_budget:.0f}. Target a stud RB/WR now!",
+                    "action": "Target elite player",
+                    "actionText": "Show Top Available"
+                }
+            else:  # Value hunting phase
+                return {
+                    "title": "Value Hunting Mode",
+                    "content": f"With ${my_budget} left, look for $1-5 sleepers and handcuffs.",
+                    "action": "Find value picks",
+                    "actionText": "Show Sleepers"
+                }
         
         return None
 
 
-# Test function for development
-async def test_draft_monitor():
-    """Test the draft monitor with real league data"""
-    username = os.getenv('SLEEPER_USERNAME')
-    league_id = os.getenv('SLEEPER_LEAGUE_ID')
-    
-    if not username or not league_id:
-        print("❌ Please set SLEEPER_USERNAME and SLEEPER_LEAGUE_ID in .env file")
-        return
-    
-    async with DraftMonitor(username, league_id) as monitor:
-        success = await monitor.initialize_draft()
-        if success:
-            print("✅ Draft monitor test successful!")
-            
-            # Show recent picks
-            recent = await monitor.get_recent_picks_summary(3)
-            if recent:
-                print("\n📝 Recent picks:")
-                for pick in recent:
-                    print(f"  Pick {pick['pick_no']}: {pick['player_name']} ({pick['positions']}) - {pick['team']}")
-            else:
-                print("  No picks made yet")
-        else:
-            print("❌ Draft monitor test failed")
-
-
-if __name__ == "__main__":
-    # Run test when script is executed directly
-    from dotenv import load_dotenv
-    load_dotenv('.env.local')
-    load_dotenv()
-    
-    asyncio.run(test_draft_monitor())
+# Global instance
+draft_monitor = DraftMonitor()

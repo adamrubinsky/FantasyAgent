@@ -1093,3 +1093,104 @@ KEY RULES:
 5. Test Yahoo Auction agent (League 3)
 6. Optimize response times if possible
 7. Document the unified architecture
+
+---
+
+## Phase 2 - Day 3: Morning Session (August 17, 2025)
+**Time**: Morning
+**Goal**: Fix rankings display and implement draft monitoring
+
+### Major Accomplishments
+
+#### 1. Fixed Rankings Display Issue ✅
+- **Problem**: All leagues showing SUPERFLEX rankings (QBs ranked too high for Yahoo)
+- **Root Cause**: FantasyPros API using wrong parameters - position="FLX" returned no data
+- **Solution**: 
+  - Yahoo leagues: Use `type=STD` with `position=ALL` for standard rankings
+  - Sleeper: Keep `type=DRAFT` with `position=OP` for SUPERFLEX rankings
+- **Verification**: 
+  - Sleeper: Josh Allen (QB) #1, 5 QBs in top 10
+  - Yahoo Snake: Ja'Marr Chase (WR) #1, no QBs in top 5
+  - Yahoo Auction: Similar to PPR with slight RB boost
+
+#### 2. Fixed Yahoo Agent Query Processing ✅
+- **Problem**: Yahoo agents returning same player (Ja'Marr Chase) regardless of query
+- **Solution**: Added query text parsing and filtering logic
+- **Files Modified**:
+  - `yahoo_agents/agents/yahoo_snake_agent.py` - Added query parsing
+  - `yahoo_agents/agents/yahoo_auction_agent.py` - Added query parsing
+- **Result**: Agents now respond appropriately to "Best QB?", "RB or WR?", etc.
+
+#### 3. Implemented Draft URL Input Fields ✅
+- **UI Changes**: Added draft connection bar below platform info
+- **Features**:
+  - Platform-specific placeholders and help text
+  - Visual status indicators (yellow when disconnected, green when connected)
+  - Connect/Disconnect functionality
+  - Auto-polling every 5 seconds when connected
+
+#### 4. Created Draft Monitoring System ✅
+- **New File**: `core/draft_monitor.py`
+- **Sleeper**: Full API integration using `api.sleeper.app/v1/draft/` endpoints
+- **Yahoo**: Mock data implementation (real API requires OAuth)
+- **Features**:
+  - Extract draft ID from URL using regex
+  - Poll for draft updates every 5 seconds
+  - Generate proactive recommendations based on draft status
+  - Platform-specific status fetching
+
+#### 5. Added Server Endpoints ✅
+- **`/api/connect-draft`**: Connect to a live draft
+- **`/api/draft-status`**: Get current draft status and recommendations
+- **Request Models**: DraftConnection, DraftStatusRequest
+- **Integration**: Connected to draft_monitor module
+
+### Technical Details
+
+#### API Parameter Fix (official_fantasypros.py)
+```python
+# For SUPERFLEX (Sleeper)
+params = {
+    "scoring": scoring,
+    "type": "DRAFT",
+    "position": "OP",  # Offensive Player for SUPERFLEX
+    "week": 0
+}
+
+# For Standard (Yahoo)
+params = {
+    "scoring": scoring,
+    "type": "STD",     # Standard type (no SUPERFLEX weighting)
+    "position": "ALL",  # All positions
+    "week": 0
+}
+```
+
+#### Files Modified
+- `templates/unified.html` - Added draft connection UI and monitoring methods
+- `unified_server.py` - Added draft endpoints, imported draft_monitor
+- `core/official_fantasypros.py` - Fixed API parameters for correct rankings
+- `core/draft_monitor.py` - New file for draft monitoring logic
+- `yahoo_agents/agents/yahoo_snake_agent.py` - Query parsing improvements
+- `yahoo_agents/agents/yahoo_auction_agent.py` - Query parsing improvements
+
+### Testing Results
+- Rankings correctly differentiated between leagues ✅
+- Draft URL input fields appear for all leagues ✅
+- Connection to Sleeper draft works (with valid draft ID) ✅
+- Yahoo draft connection accepts URL (returns mock data) ✅
+- UI polls every 5 seconds when connected ✅
+- Yahoo agents respond to different queries appropriately ✅
+
+### User Feedback
+- "It looks like they're loading right in the Web UI for me too"
+- "Now yeah we need the draft monitoring and field input elements for all 3 leagues"
+- Rankings confirmed working correctly
+
+### Outstanding Tasks for Afternoon Session
+1. Optimize Yahoo agent response time to <3s consistently
+2. Implement real Yahoo API integration (OAuth flow)
+3. Add more sophisticated proactive recommendations
+4. Test with live draft scenarios
+5. Add draft history tracking
+6. Implement roster management features

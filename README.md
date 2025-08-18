@@ -16,7 +16,7 @@ A unified fantasy football draft assistant supporting **multiple platforms and l
 ### 🎮 Supported Leagues
 - **Sleeper SUPERFLEX** - 12-team, Half-PPR, SUPERFLEX position
 - **Yahoo Snake Draft** - 10-team, Full PPR, 6PT passing TDs
-- **Yahoo Auction** - 12-team, Half-PPR, $200 budget
+- **Sleeper Auction** - 12-team, Half-PPR, $200 budget (moved from Yahoo)
 
 ### ✨ Key Features
 - 🎨 **Unified Vue.js Interface** with platform switcher

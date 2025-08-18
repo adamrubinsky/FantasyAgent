@@ -28,6 +28,9 @@ load_dotenv('.env')
 if os.getenv("ANTHROPIC_API_KEY"):
     os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
 
+# Import draft monitor
+from core.draft_monitor import draft_monitor
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -58,13 +61,23 @@ class DraftQuery(BaseModel):
     query: str
     context: Optional[Dict[str, Any]] = None
 
+class DraftConnection(BaseModel):
+    platform: str
+    url: str
+    draft_slot: Optional[int] = None  # For Sleeper and Yahoo Snake
+    team_name: Optional[str] = None   # For Yahoo Auction
+
+class DraftStatusRequest(BaseModel):
+    platform: str
+    url: Optional[str] = None
+
 # Global state
 class ServerState:
     def __init__(self):
         self.active_platform: Optional[str] = None
         self.sleeper_crew = None
         self.yahoo_snake_agent = None
-        self.yahoo_auction_agent = None
+        self.sleeper_auction_agent = None
         
     def get_sleeper_crew(self):
         """Get or create Sleeper CrewAI agent"""
@@ -101,24 +114,26 @@ class ServerState:
                 self.yahoo_snake_agent = MockAgent()
         return self.yahoo_snake_agent
     
-    def get_yahoo_auction_agent(self):
-        """Get or create Yahoo Auction agent"""
-        if self.yahoo_auction_agent is None:
+    def get_sleeper_auction_agent(self):
+        """Get or create Sleeper Auction agent"""
+        if self.sleeper_auction_agent is None:
             try:
-                from yahoo_agents.agents.yahoo_auction_agent import YahooAuctionAgent
+                from yahoo_agents.agents.sleeper_auction_agent import SleeperAuctionAgent
                 api_key = os.getenv("ANTHROPIC_API_KEY")
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY not found")
-                self.yahoo_auction_agent = YahooAuctionAgent(anthropic_api_key=api_key)
-                logger.info("Yahoo Auction agent initialized")
+                self.sleeper_auction_agent = SleeperAuctionAgent(anthropic_api_key=api_key)
+                logger.info("Sleeper Auction agent initialized")
             except Exception as e:
-                logger.error(f"Failed to initialize Yahoo Auction agent: {e}")
+                logger.error(f"Failed to initialize Sleeper Auction agent: {e}")
                 # Return a mock agent for now
                 class MockAgent:
+                    async def get_bid_recommendation(self, context):
+                        return f"Sleeper Auction agent not available: {str(e)}"
                     async def get_recommendation(self, query, context):
-                        return f"Yahoo Auction agent not available. Your query: {query}"
-                self.yahoo_auction_agent = MockAgent()
-        return self.yahoo_auction_agent
+                        return f"Sleeper Auction agent not available. Your query: {query}"
+                self.sleeper_auction_agent = MockAgent()
+        return self.sleeper_auction_agent
 
 # Initialize server state
 state = ServerState()
@@ -158,8 +173,8 @@ async def select_platform(selection: PlatformSelection):
             state.get_sleeper_crew()
         elif selection.platform == "yahoo-snake":
             state.get_yahoo_snake_agent()
-        elif selection.platform == "yahoo-auction":
-            state.get_yahoo_auction_agent()
+        elif selection.platform == "sleeper-auction":
+            state.get_sleeper_auction_agent()
         
         return JSONResponse({
             "status": "success",
@@ -209,11 +224,30 @@ async def draft_query(query: DraftQuery):
                     formatted = "I need more context to provide recommendations. Please specify your round, pick position, and current roster."
                 result = formatted
             
-        elif query.platform == "yahoo-auction":
-            agent = state.get_yahoo_auction_agent()
-            # Yahoo Auction agent uses get_bid_recommendation
+        elif query.platform == "sleeper-auction":
+            agent = state.get_sleeper_auction_agent()
+            # Sleeper Auction agent uses get_bid_recommendation
             context = query.context or {}
             context["query"] = query.query
+            
+            # Get current draft status if connected
+            if query.platform in draft_monitor.connected_drafts:
+                draft_status = await draft_monitor.get_draft_status(query.platform)
+                if draft_status.get("status") == "success":
+                    # Add auction-specific context
+                    my_roster = draft_status.get("myRoster", [])
+                    context.update({
+                        "current_player": draft_status.get("draftStatus", {}).get("currentPlayer"),
+                        "current_bid": draft_status.get("draftStatus", {}).get("currentBid", 0),
+                        "my_budget": draft_status.get("draftStatus", {}).get("myBudget", 200),
+                        "avg_budget": draft_status.get("draftStatus", {}).get("avgBudget", 200),
+                        "user_roster": my_roster,
+                        "roster_size": len(my_roster),
+                        "recent_purchases": draft_status.get("recentPurchases", []),
+                        "team_budgets": draft_status.get("teamBudgets", {})
+                    })
+                    logger.info(f"Auction context: Budget ${context['my_budget']}, Roster size: {len(my_roster)}")
+            
             result = await agent.get_bid_recommendation(context)
             
             # Format Yahoo Auction response for natural language display
@@ -303,8 +337,8 @@ async def get_rankings(platform: str):
         # Platform-specific settings - CRITICAL: Only Sleeper uses OP for SUPERFLEX!
         settings = {
             "sleeper": {"position": "OP", "scoring": "HALF"},      # SUPERFLEX rankings
-            "yahoo-snake": {"position": "ALL", "scoring": "PPR"},   # Standard Full PPR (NOT SUPERFLEX)
-            "yahoo-auction": {"position": "ALL", "scoring": "HALF"} # Standard Half PPR (NOT SUPERFLEX)
+            "yahoo-snake": {"position": "ALL", "scoring": "PPR"},   # Standard Full PPR (uses FLEX internally)
+            "sleeper-auction": {"position": "ALL", "scoring": "HALF"} # Standard Half PPR (uses FLEX internally)
         }
         
         platform_settings = settings.get(platform, {"position": "ALL", "scoring": "HALF"})
@@ -330,6 +364,46 @@ async def get_rankings(platform: str):
             {"player_id": 2, "player_name": "CeeDee Lamb", "player_position_id": "WR", "player_team_id": "DAL", "rank_ecr": 2},
             {"player_id": 3, "player_name": "Tyreek Hill", "player_position_id": "WR", "player_team_id": "MIA", "rank_ecr": 3},
         ])
+
+@app.post("/api/connect-draft")
+async def connect_draft(connection: DraftConnection):
+    """Connect to a live draft"""
+    try:
+        result = await draft_monitor.connect(
+            connection.platform, 
+            connection.url,
+            draft_slot=connection.draft_slot,
+            team_name=connection.team_name
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Draft connection error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.post("/api/draft-status")
+async def get_draft_status(request: DraftStatusRequest):
+    """Get current draft status"""
+    try:
+        status = await draft_monitor.get_draft_status(request.platform, request.url)
+        
+        # Get proactive recommendation if available
+        if status.get("status") == "success":
+            recommendation = await draft_monitor.get_proactive_recommendation(
+                request.platform, status
+            )
+            if recommendation:
+                status["recommendation"] = recommendation
+        
+        return JSONResponse(status)
+    except Exception as e:
+        logger.error(f"Draft status error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
 
 @app.get("/api/health")
 async def health_check():
