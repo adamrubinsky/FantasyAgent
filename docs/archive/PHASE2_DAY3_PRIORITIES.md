@@ -56,7 +56,7 @@ Welcome to Day 3 of Phase 2! This document will guide you through today's priori
 - Check <3s response time
 - Test with sample queries
 
-### 5. Test Yahoo Auction Agent (League 3)
+### 5. Test Sleeper Auction Agent (League 3)
 **League Details**:
 - 12-team
 - Half PPR (0.5 points)

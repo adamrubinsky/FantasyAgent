@@ -6,7 +6,7 @@
 #### Issues Fixed
 
 1. **Rankings Display Issue** ✅
-   - **Problem**: All leagues (Sleeper, Yahoo Snake, Yahoo Auction) were showing SUPERFLEX rankings instead of league-specific rankings
+   - **Problem**: All leagues (Sleeper, Yahoo Snake, Sleeper Auction) were showing SUPERFLEX rankings instead of league-specific rankings
    - **Root Cause**: FantasyPros API was using wrong parameters - position="FLX" returned no data, defaulting to OP
    - **Solution**: 
      - Yahoo leagues: Use `type=STD` with `position=ALL` for standard rankings
@@ -87,20 +87,20 @@ elif position == "ALL":
 #### Team Identification Feature ✅
 - **Added UI inputs** for team identification:
   - Sleeper/Yahoo Snake: Draft slot input (1-12 or 1-10)
-  - Yahoo Auction: Team name input field
+  - Sleeper Auction: Team name input field
 - **Updated server models**: Extended DraftConnection with draft_slot and team_name fields
 - **Modified draft_monitor.py**: 
   - Connect method now accepts team identification parameters
   - Sleeper status uses draft_slot to determine if it's user's turn (snake draft logic)
   - Yahoo Snake status uses draft_slot with mock data
-  - Yahoo Auction uses team_name to check high bidder and nomination order
+  - Sleeper Auction uses team_name to check high bidder and nomination order
 - **UI validation**: canConnect() requires team identification before connecting
 - **Server integration**: Team ID passed through entire flow and stored in draft connections
 
 ### Evening Session Progress
 
 #### League 3 Migration to Sleeper ✅
-- **Successfully migrated** from Yahoo Auction to Sleeper Auction platform
+- **Successfully migrated** League 3 from Yahoo to Sleeper Auction platform
 - Updated all UI references and platform selectors
 - Renamed and refactored auction agent for Sleeper
 - Implemented Sleeper API integration for auction drafts

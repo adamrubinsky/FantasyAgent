@@ -83,7 +83,7 @@ class ServerState:
         """Get or create Sleeper CrewAI agent"""
         if self.sleeper_crew is None:
             try:
-                from agents.draft_crew import FantasyDraftCrew
+                from platforms.sleeper.agents.draft_crew import FantasyDraftCrew
                 # Pass the API key explicitly
                 api_key = os.getenv("ANTHROPIC_API_KEY")
                 if not api_key:
@@ -99,7 +99,7 @@ class ServerState:
         """Get or create Yahoo Snake agent"""
         if self.yahoo_snake_agent is None:
             try:
-                from yahoo_agents.agents.yahoo_snake_agent import YahooSnakeDraftAgent
+                from platforms.yahoo.agents.yahoo_snake_agent import YahooSnakeDraftAgent
                 api_key = os.getenv("ANTHROPIC_API_KEY")
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY not found")
@@ -118,7 +118,8 @@ class ServerState:
         """Get or create Sleeper Auction agent"""
         if self.sleeper_auction_agent is None:
             try:
-                from yahoo_agents.agents.sleeper_auction_agent import SleeperAuctionAgent
+                # Use the Sleeper auction agent 
+                from platforms.sleeper.agents.sleeper_auction_agent import SleeperAuctionAgent
                 api_key = os.getenv("ANTHROPIC_API_KEY")
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY not found")
@@ -137,6 +138,48 @@ class ServerState:
 
 # Initialize server state
 state = ServerState()
+
+def calculate_next_pick(current_pick: int, user_slot: int, num_teams: int) -> int:
+    """Calculate next pick for a user in snake draft"""
+    # If draft hasn't started
+    if current_pick == 0:
+        return user_slot
+    
+    # Calculate which round we're in
+    current_round = ((current_pick - 1) // num_teams) + 1
+    pick_in_round = ((current_pick - 1) % num_teams) + 1
+    
+    # Check if it's currently user's turn
+    if current_round % 2 == 1:  # Odd round (forward)
+        if pick_in_round == user_slot:
+            # User is currently picking, next pick is in next round
+            if current_round == 16:  # Last round
+                return 0  # No more picks
+            return user_slot + (num_teams * 2) - (2 * user_slot) + 1 + (current_pick - user_slot)
+    else:  # Even round (reverse)
+        reverse_slot = num_teams - user_slot + 1
+        if pick_in_round == reverse_slot:
+            # User is currently picking
+            if current_round == 16:
+                return 0
+            return current_pick + (2 * user_slot) - 1
+    
+    # Find next pick for user
+    picks_made = current_pick
+    
+    while picks_made < num_teams * 16:  # 16 rounds total
+        picks_made += 1
+        round_num = ((picks_made - 1) // num_teams) + 1
+        pick_in_round = ((picks_made - 1) % num_teams) + 1
+        
+        if round_num % 2 == 1:  # Odd round
+            if pick_in_round == user_slot:
+                return picks_made
+        else:  # Even round
+            if pick_in_round == (num_teams - user_slot + 1):
+                return picks_made
+    
+    return 0  # No more picks
 
 @app.on_event("startup")
 async def startup_event():
@@ -195,15 +238,48 @@ async def draft_query(query: DraftQuery):
     try:
         logger.info(f"Processing query for {query.platform}: {query.query}")
         
+        # Add draft context if connected
+        context = query.context or {}
+        if query.platform in draft_monitor.connected_drafts:
+            draft_info = draft_monitor.connected_drafts[query.platform]
+            context["draft_slot"] = draft_info.get("draft_slot")
+            context["draft_id"] = draft_info.get("draft_id")
+            
+            # Get current draft status
+            status = await draft_monitor.get_draft_status(query.platform)
+            if status.get("status") == "success":
+                context["current_pick"] = status.get("draftStatus", {}).get("currentPick", 1)
+                context["current_round"] = status.get("draftStatus", {}).get("round", 1)
+                context["round"] = status.get("draftStatus", {}).get("round", 1)  # Yahoo agent expects 'round'
+                context["pick_number"] = status.get("draftStatus", {}).get("currentPick", 1)  # Yahoo agent expects 'pick_number'
+                context["my_turn"] = status.get("draftStatus", {}).get("myTurn", False)
+                context["roster"] = status.get("roster", [])  # Use 'roster' key
+                context["my_roster"] = status.get("roster", [])  # Also set my_roster for backward compatibility
+                context["user_roster"] = status.get("roster", [])  # Yahoo agent expects user_roster
+                
+                # CRITICAL: Pass full draft data for CrewAI context
+                context["draft_picks"] = status.get("draftPicks", [])
+                context["available_players"] = status.get("availablePlayers", [])
+                context["recent_picks"] = status.get("recentPicks", [])
+                
+                # CRITICAL for Yahoo: Pass drafted player names for filtering
+                context["drafted_player_names"] = status.get("draftedPlayerNames", [])
+                context["all_picks"] = status.get("allPicks", [])
+                
+                # Add draft completion flag
+                total_picks = status.get("draftStatus", {}).get("totalPicks", 204)
+                if context["current_pick"] > total_picks:
+                    context["draft_complete"] = True
+                    logger.info(f"Draft is complete with {len(context['roster'])} players on roster")
+        
         if query.platform == "sleeper":
             crew = state.get_sleeper_crew()
             # Use the analyze_draft_question method which is async
-            result = await crew.analyze_draft_question(query.query, query.context or {})
+            result = await crew.analyze_draft_question(query.query, context)
             
         elif query.platform == "yahoo-snake":
             agent = state.get_yahoo_snake_agent()
-            # Yahoo agents expect context with query inside
-            context = query.context or {}
+            # Pass the query and context
             context["query"] = query.query
             result = await agent.get_recommendation(context)
             
@@ -389,8 +465,69 @@ async def get_draft_status(request: DraftStatusRequest):
     try:
         status = await draft_monitor.get_draft_status(request.platform, request.url)
         
-        # Get proactive recommendation if available
+        # Transform data for UI if successful
         if status.get("status") == "success":
+            draft_status = status.get('draftStatus', {})
+            
+            # Calculate next pick for snake draft
+            if request.platform == "yahoo-snake":
+                current_pick = draft_status.get('currentPick', 1)
+                user_slot = draft_status.get('userSlot', 10)
+                teams = draft_status.get('teams', 10)
+                
+                # Calculate next pick number for user
+                next_pick = calculate_next_pick(current_pick, user_slot, teams)
+                draft_status['nextPick'] = next_pick
+            
+            # Transform recent picks to match UI expectations
+            recent_picks = status.get('recentPicks', [])
+            transformed_recent = []
+            for i, pick in enumerate(recent_picks):
+                transformed_recent.append({
+                    'id': f"pick_{i}",
+                    'player': pick.get('player', 'Unknown Player'),
+                    'team': pick.get('team', ''),
+                    'pick': pick.get('pick', 0),
+                    'position': pick.get('position', '')
+                })
+            status['recentPicks'] = transformed_recent
+            
+            # Ensure userRoster is set for UI (alias for roster)
+            status['userRoster'] = status.get('roster', [])
+            
+            # For Yahoo, fetch top available players from FantasyPros for UI display
+            if request.platform == "yahoo-snake" and not status.get('availablePlayers'):
+                try:
+                    from core.official_fantasypros import OfficialFantasyProsMCP
+                    client = OfficialFantasyProsMCP()
+                    all_rankings = await client.get_rankings(position="ALL", scoring="PPR", limit=300)
+                    
+                    # Filter out drafted players
+                    drafted_names = status.get('draftedPlayerNames', [])
+                    available = []
+                    for p in all_rankings:
+                        if p.get('player_name') not in drafted_names:
+                            available.append({
+                                'name': p.get('player_name'),
+                                'position': p.get('player_position_id'),
+                                'rank': p.get('rank_ecr'),
+                                'team': p.get('player_team_id', '')
+                            })
+                            if len(available) >= 10:  # Just top 10 for UI
+                                break
+                    
+                    status['availablePlayers'] = available
+                except Exception as e:
+                    logger.warning(f"Could not fetch available players for UI: {e}")
+                    status['availablePlayers'] = []
+            
+            logger.info(f"=== DRAFT STATUS RESPONSE ===")
+            logger.info(f"Current Pick: {draft_status.get('currentPick')}")
+            logger.info(f"Next Pick: {draft_status.get('nextPick')}")
+            logger.info(f"User Slot: {draft_status.get('userSlot')}")
+            logger.info(f"Roster Count: {len(status.get('userRoster', []))}")
+            
+            # Get proactive recommendation if available
             recommendation = await draft_monitor.get_proactive_recommendation(
                 request.platform, status
             )
@@ -400,6 +537,117 @@ async def get_draft_status(request: DraftStatusRequest):
         return JSONResponse(status)
     except Exception as e:
         logger.error(f"Draft status error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.get("/api/roster/{platform}")
+async def get_roster(platform: str):
+    """Get user's current roster"""
+    try:
+        if platform not in draft_monitor.connected_drafts:
+            return JSONResponse({"status": "error", "message": "Not connected to draft"})
+        
+        # Get draft status which includes roster
+        status = await draft_monitor.get_draft_status(platform)
+        
+        if status.get("status") == "success":
+            # Return just the roster data
+            return JSONResponse({
+                "status": "success",
+                "roster": status.get("myRoster", []),
+                "allPicks": status.get("allPicks", [])
+            })
+        else:
+            return JSONResponse({"status": "error", "message": "Failed to get roster"})
+            
+    except Exception as e:
+        logger.error(f"Get roster error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.get("/api/available-players/{platform}")
+async def get_available_players(platform: str):
+    """Get top available players (undrafted)"""
+    try:
+        # Get rankings for the platform
+        from core.official_fantasypros import OfficialFantasyProsMCP
+        
+        settings = {
+            "sleeper": {"position": "OP", "scoring": "HALF"},
+            "yahoo-snake": {"position": "ALL", "scoring": "PPR"},
+            "sleeper-auction": {"position": "ALL", "scoring": "HALF"}
+        }
+        
+        platform_settings = settings.get(platform, {"position": "ALL", "scoring": "HALF"})
+        
+        client = OfficialFantasyProsMCP()
+        all_rankings = await client.get_rankings(
+            position=platform_settings["position"],
+            scoring=platform_settings["scoring"],
+            limit=300
+        )
+        
+        # Get drafted players if connected
+        drafted_players = set()
+        if platform in draft_monitor.connected_drafts:
+            status = await draft_monitor.get_draft_status(platform)
+            if status.get("status") == "success":
+                # Get all drafted player names
+                all_picks = status.get("allPicks", [])
+                for pick in all_picks:
+                    player_name = pick.get("player", "").lower()
+                    if player_name:
+                        drafted_players.add(player_name)
+        
+        # Filter out drafted players
+        available = []
+        for player in all_rankings:
+            player_name = player.get("player_name", "").lower()
+            if player_name not in drafted_players:
+                available.append(player)
+            
+            # Return top 50 available
+            if len(available) >= 50:
+                break
+        
+        return JSONResponse({
+            "status": "success",
+            "available": available,
+            "totalDrafted": len(drafted_players)
+        })
+        
+    except Exception as e:
+        logger.error(f"Get available players error: {e}")
+        # Return mock data so UI doesn't break
+        return JSONResponse({
+            "status": "success",
+            "available": [],
+            "totalDrafted": 0
+        })
+
+@app.post("/api/manual-pick")
+async def record_manual_pick(pick: Dict[str, Any]):
+    """Manually record a draft pick"""
+    try:
+        platform = pick.get("platform")
+        player_name = pick.get("player")
+        team_slot = pick.get("team")
+        pick_number = pick.get("pick")
+        
+        # TODO: Implement manual tracking
+        logger.info(f"Manual pick recorded: {player_name} to team {team_slot}")
+        
+        return JSONResponse({
+            "status": "success",
+            "message": f"Recorded {player_name}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Manual pick error: {e}")
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e)}

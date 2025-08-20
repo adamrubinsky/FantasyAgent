@@ -54,7 +54,7 @@ yahoo_agents/
 **Roster Requirements**:
 - 1 QB, 2 RB, 2 WR, 1 TE, 1 W/R Flex, 1 K, 1 DEF, 7 Bench
 
-### League 3: Yahoo Auction Draft (August 24, 2024)
+### League 3: Sleeper Auction Draft (August 24, 2024)
 **Format**: Auction Draft  
 **Budget**: $200  
 **Scoring**: Half PPR (0.5 points per reception)  

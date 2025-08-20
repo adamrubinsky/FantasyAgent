@@ -23,7 +23,7 @@ from core.draft_monitor import DraftMonitor
 from core.mcp_integration import MCPClient, EnhancedRankingsManager
 from core.league_context import league_manager
 from core.ai_assistant import FantasyAIAssistant
-from agents.draft_crew import FantasyDraftCrew
+from platforms.sleeper.agents.draft_crew import FantasyDraftCrew
 
 # Load environment variables - try local first, then default
 load_dotenv('.env.local')  # For local development with real credentials

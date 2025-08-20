@@ -82,8 +82,8 @@ class ServerState:
                     # Try to load from .env if not set
                     load_dotenv()
                 
-                # Import Sleeper agent system from original location
-                from agents.draft_crew import FantasyDraftCrew
+                # Import Sleeper agent system from platforms location
+                from platforms.sleeper.agents.draft_crew import FantasyDraftCrew
                 from api.sleeper_client import SleeperClient
                 
                 # Get API key

@@ -1,13 +1,14 @@
 """
-Yahoo Fantasy Auction Draft Agent (League 3 - HALF PPR)
+Sleeper Fantasy Auction Draft Agent (League 3 - HALF PPR)
 Using LangGraph for real-time bidding decisions
 
-League 3 Specific Settings:
+League 3 Specific Settings (Now on Sleeper):
 - HALF PPR (0.5 points per reception)
 - $200 budget auction format
 - 4 PT passing TDs (QB less valuable)
 - NO KICKER position
 - Stars & Scrubs strategy recommended
+- 12-team league
 """
 
 import asyncio
@@ -89,9 +90,9 @@ class AuctionState(TypedDict):
     response_time_ms: Optional[int]
 
 
-class YahooAuctionAgent:
+class SleeperAuctionAgent:
     """
-    Auction draft agent for Yahoo League 3
+    Auction draft agent for Sleeper League 3
     Optimized for Half-PPR with Stars & Scrubs strategy
     """
     
@@ -390,8 +391,65 @@ class YahooAuctionAgent:
     
     async def get_bid_recommendation(self, context: Dict) -> Dict:
         """Get real-time bidding recommendation"""
+        # Log what context we're receiving
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Auction agent received context: {context.keys()}")
+        logger.info(f"My budget: ${context.get('my_budget')}")
+        logger.info(f"My roster size: {context.get('roster_size', 0)}")
+        
+        # Get roster and budget info
+        my_budget = context.get("my_budget", 200)
+        my_roster = context.get("user_roster", [])
+        roster_size = len(my_roster)
+        
         # Parse the query to understand what user is asking
         query_text = context.get("query", "").lower()
+        
+        # Check for roster questions
+        if ("roster" in query_text or "team" in query_text or "who do i have" in query_text):
+            if roster_size == 0:
+                return {"message": "Your roster is empty. Time to start bidding!"}
+            else:
+                roster_summary = f"You have {roster_size} players for ${200 - my_budget} total"
+                return {
+                    "message": f"**Your Roster**: {roster_summary}",
+                    "budget": f"Remaining: ${my_budget} (avg per slot: ${my_budget / max(1, 16-roster_size):.0f})",
+                    "recommendation": "Focus on value picks with your remaining budget"
+                }
+        
+        # Handle explicit player bidding questions (e.g., "Tyreek Hill is up for $45")
+        import re
+        player_pattern = r"([A-Z][a-z]+ [A-Z][a-z]+|[A-Z]\.[A-Z]\. [A-Z][a-z]+).*\$(\d+)"
+        match = re.search(player_pattern, query_text.title())
+        if match:
+            player_name = match.group(1)
+            current_bid = int(match.group(2))
+            
+            # Smarter value check based on budget and roster needs
+            slots_remaining = max(1, 16 - roster_size)
+            avg_per_slot = my_budget / slots_remaining
+            
+            # Don't spend more than 40% on one player unless it's a stud and you have budget
+            if roster_size < 3:  # Early, can spend on studs
+                max_bid = min(current_bid + 15, my_budget * 0.4)
+            else:  # Later, be more conservative
+                max_bid = min(current_bid + 5, avg_per_slot * 2)
+            
+            return {
+                "message": f"For **{player_name}** at ${current_bid}:",
+                "recommendation": f"Max bid: **${max_bid}**",
+                "reasoning": f"Budget: ${my_budget}, {slots_remaining} slots left (${avg_per_slot:.0f}/slot avg)",
+                "verdict": "✅ BID" if current_bid < max_bid - 5 else "⚠️ PASS"
+            }
+        
+        # Check if asking about current player
+        if "who" in query_text and ("up" in query_text or "auction" in query_text or "current" in query_text):
+            # Can't determine from API, ask user to provide info
+            return {
+                "message": "I can't see who's currently up in the mock draft. Tell me who's up and for how much (e.g., 'Tyreek Hill is up for $45')",
+                "tip": "Or ask me who to nominate next!"
+            }
         
         # Initialize state with defaults
         state = AuctionState(

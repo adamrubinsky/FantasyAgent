@@ -26,7 +26,7 @@ load_dotenv('.env.local')
 from api.sleeper_client import SleeperClient
 from core.draft_monitor import DraftMonitor
 from core.mcp_integration import MCPClient
-from agents.draft_crew import FantasyDraftCrew
+from platforms.sleeper.agents.draft_crew import FantasyDraftCrew
 from core.league_context import league_manager
 
 app = FastAPI(title="Fantasy Draft Assistant", description="AI-powered draft recommendations")

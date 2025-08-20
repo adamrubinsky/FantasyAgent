@@ -27,7 +27,7 @@ load_dotenv('.env.local')
 # Import our core systems
 from api.sleeper_client import SleeperClient
 from core.official_fantasypros import OfficialFantasyProsMCP
-from agents.draft_crew import FantasyDraftCrew
+from platforms.sleeper.agents.draft_crew import FantasyDraftCrew
 
 app = FastAPI(
     title="Fantasy Draft Assistant - DEV MODE", 

@@ -18,7 +18,7 @@ import json
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint import MemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 
 # LangChain imports  
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -31,7 +31,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-from data_providers import get_fantasypros_mcp_client
+from data_providers.direct_fantasypros import get_direct_fantasypros_client
 
 
 # League 2 specific constants
@@ -109,8 +109,8 @@ class YahooSnakeDraftAgent:
         # Pre-computed Full PPR strategies
         self.ppr_strategies = self._load_ppr_strategies()
         
-        # FantasyPros MCP client for live data
-        self.fp_client = get_fantasypros_mcp_client()
+        # FantasyPros direct client for live data
+        self.fp_client = get_direct_fantasypros_client()
         
         # Cache for rankings data
         self.rankings_cache = None
@@ -143,41 +143,9 @@ class YahooSnakeDraftAgent:
         return workflow
     
     async def quick_position_check(self, state: SnakeDraftState) -> SnakeDraftState:
-        """Quick rule-based check for obvious picks"""
-        roster = state["user_roster"]
-        round_num = state["round"]
-        
-        # Full PPR specific quick rules
-        qb_count = len(roster.get("QB", []))
-        rb_count = len(roster.get("RB", []))
-        wr_count = len(roster.get("WR", []))
-        te_count = len(roster.get("TE", []))
-        
-        # Simple decisions that don't need LLM
-        obvious_need = None
-        
-        if round_num <= 10:  # Core roster rounds
-            if te_count == 0 and round_num >= 4:
-                obvious_need = "TE"
-            elif qb_count == 0 and round_num >= 6:
-                obvious_need = "QB"
-            elif wr_count < 2:
-                obvious_need = "WR"  # WR priority in Full PPR
-            elif rb_count < 2:
-                obvious_need = "RB"
-        
-        if obvious_need:
-            # Find best available at position
-            candidates = [p for p in state["available_players"][:20] 
-                         if p.get("position") == obvious_need]
-            if candidates:
-                state["recommendations"] = [{
-                    "name": candidates[0]["name"],
-                    "position": obvious_need,
-                    "reason": f"Critical need at {obvious_need} in Full PPR"
-                }]
-                state["response_time_ms"] = 50  # Near instant
-        
+        """Quick rule-based check for obvious picks - DISABLED to force full analysis"""
+        # DISABLED - Always run full analysis for better responses
+        # The quick check was causing too many generic responses
         return state
     
     async def parallel_ppr_analysis(self, state: SnakeDraftState) -> SnakeDraftState:
@@ -216,24 +184,90 @@ class YahooSnakeDraftAgent:
             # Already have quick pick
             return state
         
-        # Build context for Full PPR
+        # Get available players with more context
+        # IMPORTANT: Use the filtered list, not just top 15!
+        available = state.get("available_players", [])
+        if len(available) > 15:
+            available = available[:15]  # Only limit if we have many
+        
+        # Build detailed player context
+        player_details = []
+        for i, p in enumerate(available[:min(10, len(available))], 1):
+            rank = p.get('rank', p.get('rank_ecr', 999))
+            pos = p.get('position', '??')
+            name = p.get('name', 'Unknown')
+            team = p.get('team', p.get('player_team_id', ''))
+            
+            # Add PPR-specific context
+            detail = f"{i}. {name} ({pos}, {team}) - Rank #{rank}"
+            
+            # Add special notes for known players
+            if pos == "WR":
+                detail += " [PPR Premium]"
+            elif pos == "RB" and any(rb in name for rb in ["McCaffrey", "Ekeler", "Kamara", "White"]):
+                detail += " [Pass-Catcher]"
+            elif pos == "QB" and rank < 15:
+                detail += " [6PT TD Bonus]"
+                
+            player_details.append(detail)
+        
+        player_list = "\n".join(player_details)
+        
+        # Analyze roster needs
+        roster = state.get("user_roster", {})
+        if isinstance(roster, list):
+            # Convert to position counts
+            position_counts = {"QB": 0, "RB": 0, "WR": 0, "TE": 0}
+            for player in roster:
+                pos = player.get("position", "")
+                if pos in position_counts:
+                    position_counts[pos] += 1
+        else:
+            position_counts = {
+                "QB": len(roster.get("QB", [])),
+                "RB": len(roster.get("RB", [])),
+                "WR": len(roster.get("WR", [])),
+                "TE": len(roster.get("TE", []))
+            }
+        
+        # Build context for Full PPR with roster awareness
         context = f"""
-        FULL PPR LEAGUE (1 point per reception)
+        FULL PPR LEAGUE (1 point per reception, 6PT passing TDs)
         Round {state['round']}, Pick {state['pick_number']}
         
-        WR Priority Score: {state.get('wr_priority_score', 'N/A')}
-        Top Pass-Catching RBs: {json.dumps(state.get('rb_pass_catch_scores', {}))[:200]}
-        Return Specialists Available: {state.get('return_specialist_bonus', [])}
+        Current Roster:
+        - {position_counts['QB']} QBs (need 1 starter)
+        - {position_counts['RB']} RBs (need 2 starters + 1 flex)
+        - {position_counts['WR']} WRs (need 2 starters + 1 flex)  
+        - {position_counts['TE']} TEs (need 1 starter)
         
-        Strategy: Prioritize WRs and pass-catching RBs. Return yards are bonus.
+        Top Available Players:
+        {player_list}
+        
+        League Scoring Context:
+        - Full PPR: WRs get ~25% value boost over standard
+        - 6PT Pass TDs: Elite QBs worth reaching for
+        - Return yards: Deebo, Tyreek, Waddle get bonus
+        - Position Scarcity: {state.get('position_scarcity', {})}
         """
         
         prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""You are a Full PPR draft expert.
-            WRs are premium. Pass-catching RBs > rushing RBs.
-            Return specialists get bonus points.
-            Format: [{"name": "Player", "position": "POS", "reason": "PPR-specific reason"}]"""),
-            HumanMessage(content=context + "\nRecommend top 3 picks for Full PPR.")
+            SystemMessage(content="""You are an expert Full PPR fantasy analyst for a 10-team league.
+            
+            ABSOLUTE REQUIREMENTS:
+            1. You MUST ONLY recommend players from the EXACT list provided below
+            2. DO NOT recommend Ja'Marr Chase, Justin Jefferson, or Bijan Robinson unless they appear in the list
+            3. The list has been pre-filtered based on the user's query - respect this filtering
+            4. If the list shows players ranked 100+, those ARE the correct options to recommend
+            
+            Context about Full PPR scoring:
+            - WRs and pass-catching RBs get premium value
+            - 6PT passing TDs make QBs more valuable
+            - Return specialists get bonus points
+            
+            Provide EXACTLY 3 recommendations from the provided list as JSON:
+            [{"name": "EXACT name from list", "position": "POS", "reason": "Specific reasoning for THIS player"}]"""),
+            HumanMessage(content=context + "\n\nIMPORTANT: Only recommend players that appear in the 'Top Available Players' list above. Give your top 3 recommendations.")
         ])
         
         chain = prompt | self.smart_llm | JsonOutputParser()
@@ -242,7 +276,7 @@ class YahooSnakeDraftAgent:
             recommendations = await chain.ainvoke({})
             state["recommendations"] = recommendations[:3]
         except:
-            # Fallback to simple recommendations
+            # Fallback to simple recommendations from available players
             state["recommendations"] = self._get_fallback_ppr_picks(state)
         
         state["strategy_notes"] = "Full PPR: Target WRs and pass-catching backs"
@@ -259,8 +293,8 @@ class YahooSnakeDraftAgent:
         """Calculate WR priority in Full PPR"""
         available = data["available"]
         
-        # Count top WRs available
-        top_wrs = [p for p in available if p.get("position") == "WR"][:10]
+        # Count top WRs available (handle both field names)
+        top_wrs = [p for p in available if p.get("position", p.get("player_position_id")) == "WR"][:10]
         
         if len(top_wrs) < 3:
             return 0.9  # High priority - scarcity
@@ -287,8 +321,8 @@ class YahooSnakeDraftAgent:
         scores = {}
         
         for player in available:
-            if player.get("position") == "RB":
-                name = player.get("name", "")
+            if player.get("position", player.get("player_position_id")) == "RB":
+                name = player.get("name", player.get("player_name", ""))
                 # Check if known pass-catcher
                 for rb_name, score in pass_catch_rbs.items():
                     if rb_name in name:
@@ -322,7 +356,7 @@ class YahooSnakeDraftAgent:
         counts = {"QB": 0, "RB": 0, "WR": 0, "TE": 0}
         
         for player in available:
-            pos = player.get("position", "")
+            pos = player.get("position", player.get("player_position_id", ""))
             if pos in counts:
                 counts[pos] += 1
         
@@ -347,37 +381,98 @@ class YahooSnakeDraftAgent:
         }
     
     def _get_fallback_ppr_picks(self, state: SnakeDraftState) -> List[Dict]:
-        """Simple fallback for Full PPR"""
+        """Intelligent fallback for Full PPR based on rankings and roster needs"""
         picks = []
-        available = state["available_players"][:10]
+        # Use ALL available players, not just top 15 - they might be filtered!
+        available = state.get("available_players", [])
         
-        # Prioritize WR in Full PPR
-        wrs = [p for p in available if p.get("position") == "WR"]
-        if wrs:
+        # Analyze current roster
+        roster = state.get("user_roster", {})
+        if isinstance(roster, list):
+            qb_count = len([p for p in roster if p.get("position") == "QB"])
+            rb_count = len([p for p in roster if p.get("position") == "RB"])
+            wr_count = len([p for p in roster if p.get("position") == "WR"])
+            te_count = len([p for p in roster if p.get("position") == "TE"])
+        else:
+            qb_count = len(roster.get("QB", []))
+            rb_count = len(roster.get("RB", []))
+            wr_count = len(roster.get("WR", []))
+            te_count = len(roster.get("TE", []))
+        
+        round_num = state.get("round", 1)
+        
+        # Smart fallback logic based on roster needs and round
+        for p in available:
+            if len(picks) >= 3:
+                break
+                
+            pos = p.get("position", "??")
+            name = p.get("name", "Unknown")
+            rank = p.get("rank", p.get("rank_ecr", 999))
+            
+            # Skip positions we're full at
+            if pos == "QB" and qb_count >= 2:
+                continue
+            if pos == "TE" and te_count >= 2:
+                continue
+            if pos == "RB" and rb_count >= 5:
+                continue
+            if pos == "WR" and wr_count >= 5:
+                continue
+            
+            # Generate intelligent reasoning
+            if pos == "QB":
+                if rank <= 5:
+                    reason = f"Elite QB#{rank} with 6PT passing TD bonus in Full PPR"
+                elif qb_count == 0 and round_num >= 6:
+                    reason = f"Need starting QB - solid option at #{rank}"
+                else:
+                    reason = f"QB value at #{rank} with 6PT TD scoring"
+            elif pos == "WR":
+                if rank <= 15:
+                    reason = f"Elite WR#{rank} - Premium asset in Full PPR format"
+                elif rank <= 30:
+                    reason = f"Strong WR2 at #{rank} - Excellent PPR floor"
+                else:
+                    reason = f"WR depth at #{rank} - PPR upside play"
+            elif pos == "RB":
+                # Check if pass-catcher
+                pass_catchers = ["McCaffrey", "Ekeler", "Kamara", "Hall", "White", "Gibbs", "Pollard", "Barkley"]
+                if any(rb in name for rb in pass_catchers):
+                    reason = f"Pass-catching RB#{rank} - High value in Full PPR"
+                elif rank <= 20:
+                    reason = f"Top RB#{rank} - Volume play even in PPR"
+                else:
+                    reason = f"RB depth at #{rank} - Potential flex option"
+            elif pos == "TE":
+                if rank <= 5:
+                    reason = f"Elite TE#{rank} - Positional advantage in PPR"
+                elif te_count == 0 and round_num >= 5:
+                    reason = f"Starting TE need - Solid option at #{rank}"
+                else:
+                    reason = f"TE value at #{rank} with PPR upside"
+            else:
+                reason = f"Best available {pos} at rank #{rank}"
+            
             picks.append({
-                "name": wrs[0]["name"],
-                "position": "WR",
-                "reason": "Best WR available (Full PPR premium)"
+                "name": name,
+                "position": pos,
+                "reason": reason
             })
         
-        # Then pass-catching RBs
-        rbs = [p for p in available if p.get("position") == "RB"]
-        if rbs:
-            picks.append({
-                "name": rbs[0]["name"],
-                "position": "RB",
-                "reason": "RB depth needed"
-            })
+        # If we didn't get 3 picks due to filtering, add best available
+        if len(picks) < 3:
+            for p in available:
+                if len(picks) >= 3:
+                    break
+                if not any(pick["name"] == p.get("name") for pick in picks):
+                    picks.append({
+                        "name": p.get("name", "Unknown"),
+                        "position": p.get("position", "??"),
+                        "reason": f"Best available at rank #{p.get('rank', 999)}"
+                    })
         
-        # Fill with best available
-        if len(picks) < 3 and available:
-            picks.append({
-                "name": available[0]["name"],
-                "position": available[0].get("position", "??"),
-                "reason": "Best available player"
-            })
-        
-        return picks
+        return picks[:3]
     
     async def _fetch_live_rankings(self, position: str = "ALL") -> List[Dict]:
         """Fetch live rankings from FantasyPros MCP with caching"""
@@ -387,10 +482,14 @@ class YahooSnakeDraftAgent:
                 return self.rankings_cache
         
         # Fetch from MCP (League 2 = Full PPR)
-        rankings = await self.fp_client.get_rankings_for_yahoo_league(2, position)
+        raw_rankings = await self.fp_client.get_rankings_for_yahoo_league(2, position)
         
-        # Apply League 2 specific adjustments
-        rankings = self._apply_league2_adjustments(rankings)
+        # Ensure field mapping even if empty
+        if not raw_rankings:
+            return []
+        
+        # Apply League 2 specific adjustments (includes field mapping)
+        rankings = self._apply_league2_adjustments(raw_rankings)
         
         # Cache the results
         self.rankings_cache = rankings
@@ -411,15 +510,24 @@ class YahooSnakeDraftAgent:
         for player in rankings:
             p = player.copy()
             
+            # CRITICAL: Map FantasyPros field names to what agent expects
+            p["position"] = p.get("player_position_id", p.get("position", ""))  # Use player_position_id
+            p["name"] = p.get("player_name", p.get("name", "Unknown"))
+            p["team"] = p.get("player_team_id", p.get("team", ""))
+            p["rank"] = p.get("rank_ecr", p.get("rank", 999))
+            
+            # Ensure position field is set correctly
+            position = p["position"]
+            
             # QB adjustment for 6PT passing TDs
-            if p["position"] == "QB":
+            if position == "QB":
                 # QBs are MORE valuable with 6PT TDs
                 p["l2_adjustment"] = 1.15
                 p["adjusted_rank"] = p.get("rank", 999) * 0.87  # Better rank
                 p["strategy_note"] = "6PT passing TD bonus"
                 
             # WR boost for Full PPR
-            elif p["position"] == "WR":
+            elif position == "WR":
                 p["l2_adjustment"] = 1.25
                 p["adjusted_rank"] = p.get("rank", 999) * 0.80
                 p["strategy_note"] = "Full PPR premium"
@@ -434,7 +542,7 @@ class YahooSnakeDraftAgent:
                     p["strategy_note"] += " + Return yards"
                     
             # RB adjustments based on receiving ability
-            elif p["position"] == "RB":
+            elif position == "RB":
                 # Known pass-catching backs get boost
                 pass_catchers = {
                     "Christian McCaffrey": 1.20,
@@ -458,7 +566,7 @@ class YahooSnakeDraftAgent:
                     p["adjusted_rank"] = p.get("rank", 999) * 0.95
                     
             # TE gets small PPR boost
-            elif p["position"] == "TE":
+            elif position == "TE":
                 p["l2_adjustment"] = 1.08
                 p["adjusted_rank"] = p.get("rank", 999) * 0.93
                 p["strategy_note"] = "PPR TE value"
@@ -477,17 +585,227 @@ class YahooSnakeDraftAgent:
         """Get Full PPR optimized recommendation"""
         start = datetime.now()
         
-        # Fetch live rankings if not provided
-        if not context.get("available_players"):
+        # Parse the query to understand what user is asking
+        query_text = context.get("query", "").lower()
+        print(f"🎯 Yahoo Snake processing query: '{query_text}'")
+        
+        # Check for questions about draft position/status
+        if any(phrase in query_text for phrase in ["what pick", "draft position", "draft slot", "which pick", "my turn"]):
+            draft_slot = context.get("draft_slot", "unknown")
+            current_pick = context.get("current_pick", 1)
+            current_round = context.get("current_round", 1)
+            my_turn = context.get("my_turn", False)
+            
+            response = f"You have the **#{draft_slot} pick** in this 10-team Full PPR draft.\n\n"
+            response += f"Current status: Pick #{current_pick} (Round {current_round})\n"
+            if my_turn:
+                response += "🎯 **It's your turn to pick!**\n\n"
+                # Also give a recommendation
+                response += "Since you're up, I recommend taking the best available WR or pass-catching RB for Full PPR value."
+            else:
+                # Calculate when next pick is in snake draft
+                if draft_slot and draft_slot != "unknown":
+                    slot = int(draft_slot)
+                    # Snake draft logic
+                    if current_round % 2 == 1:  # Odd round
+                        if current_pick % 10 < slot:
+                            picks_until = slot - (current_pick % 10)
+                        else:
+                            picks_until = (20 - (current_pick % 10)) + (11 - slot)
+                    else:  # Even round  
+                        if (11 - (current_pick % 10)) < slot:
+                            picks_until = (current_pick % 10) + slot - 11
+                        else:
+                            picks_until = (11 - slot) - (current_pick % 10)
+                    
+                    if picks_until > 0:
+                        response += f"Your next pick is in **{picks_until} selections**"
+            
+            return response
+        
+        # ALWAYS fetch live rankings from FantasyPros if not provided or empty
+        if not context.get("available_players") or len(context.get("available_players", [])) == 0:
+            print(f"   Fetching FantasyPros rankings (available_players empty or missing)")
             live_rankings = await self._fetch_live_rankings()
-            # Filter to only undrafted players (would need draft history)
-            context["available_players"] = live_rankings[:100]
+            # Use ALL rankings (500 players) to ensure we find specific players
+            context["available_players"] = live_rankings  # Use all, not just top 100
+            print(f"   Fetched {len(live_rankings)} players from FantasyPros")
+        
+        # CRITICAL: Filter out drafted players FIRST
+        available = context["available_players"]
+        drafted_names = context.get("drafted_player_names", [])
+        
+        # Remove drafted players from available list
+        if drafted_names:
+            print(f"   Filtering out {len(drafted_names)} drafted players")
+            available = [p for p in available if p.get("name", p.get("player_name", "")) not in drafted_names]
+            print(f"   After filtering: {len(available)} players available")
+        
+        filtered_players = available
+        
+        # First check for player name comparisons (e.g., "Jeanty or Harvey", "Player A vs Player B")
+        import re
+        comparison_words = ["or", "vs", "versus", "over", "instead of"]
+        has_comparison = any(word in query_text for word in comparison_words)
+        
+        # Look for potential player names (capitalized words that aren't common terms)
+        common_terms = {"should", "i", "draft", "pick", "take", "better", "who", "which", "is", "the", "a", "an", 
+                       "rb", "wr", "qb", "te", "or", "vs", "versus"}  # Add position abbreviations
+        words = query_text.split()
+        potential_names = []
+        
+        # Special check: if query is just "RB or WR?" don't treat as player names
+        if query_text.strip().lower() in ["rb or wr?", "rb or wr", "wr or rb", "wr or rb?"]:
+            has_comparison = False  # This is a position question, not player comparison
+        else:
+            for i, word in enumerate(words):
+                # Check if word might be a player name (starts with capital or is after comparison word)
+                if word.lower() not in common_terms and len(word) > 2:
+                    # Check if it's near a comparison word
+                    if i > 0 and words[i-1].lower() in comparison_words:
+                        # Don't add if it's just a position abbreviation
+                        if word.lower() not in ["rb", "wr", "qb", "te", "wr?"]:
+                            potential_names.append(word)
+                    elif i < len(words) - 1 and words[i+1].lower() in comparison_words:
+                        if word.lower() not in ["rb", "wr", "qb", "te"]:
+                            potential_names.append(word)
+                    # Also check for multi-word names
+                    elif i < len(words) - 1 and words[i+1][0].isupper():
+                        potential_names.append(f"{word} {words[i+1]}")
+        
+        if has_comparison and potential_names:
+            # Search for these specific players in ALL rankings (not just top 30)
+            print(f"   Detected player comparison query. Searching for: {potential_names}")
+            found_players = []
+            
+            for name in potential_names:
+                name_lower = name.lower()
+                # Search through ALL available players
+                for p in available:
+                    player_name = p.get("name", "").lower()
+                    # Check for partial match or last name match
+                    if (name_lower in player_name or 
+                        player_name.endswith(name_lower) or
+                        all(part in player_name for part in name_lower.split())):
+                        if p not in found_players:
+                            found_players.append(p)
+                            print(f"   Found: {p.get('name')} ({p.get('position')}) - Rank #{p.get('rank', 'N/A')}")
+            
+            if found_players:
+                filtered_players = found_players
+            else:
+                # Don't give generic advice - return an error
+                print(f"   ERROR: Could not find players: {potential_names}")
+                return {
+                    "recommendations": [],
+                    "error": f"I couldn't find those specific players in the rankings. Please check the spelling or try different players.",
+                    "response_ms": int((datetime.now() - start).total_seconds() * 1000)
+                }
+        
+        # Parse query for specific requests
+        elif "not" in query_text and "chase" in query_text:
+            # User asking for someone other than Jamarr Chase
+            filtered_players = [p for p in available if "chase" not in p.get("name", "").lower()]
+            print(f"   Filtering out Chase, {len(filtered_players)} players remain")
+        elif "rb or wr" in query_text or "wr or rb" in query_text:
+            # User asking about RB vs WR decision
+            filtered_players = [p for p in available if p.get("position") in ["RB", "WR"]]
+            print(f"   Filtering to RB/WR, {len(filtered_players)} players")
+        elif "rb" in query_text and "wr" not in query_text:
+            # User specifically asking about RBs
+            filtered_players = [p for p in available if p.get("position") == "RB"]
+            print(f"   Filtering to RBs only, {len(filtered_players)} players")
+        elif "wr" in query_text and "rb" not in query_text:
+            # User specifically asking about WRs
+            filtered_players = [p for p in available if p.get("position") == "WR"]
+            print(f"   Filtering to WRs only, {len(filtered_players)} players")
+        elif "qb" in query_text and "rb" not in query_text:  # Avoid matching "qb" in other contexts
+            # User asking about QBs
+            filtered_players = [p for p in available if p.get("position") == "QB"]
+            print(f"   Filtering to QBs, {len(filtered_players)} players")
+        elif " te " in query_text or query_text.startswith("te ") or query_text.endswith(" te") or query_text == "te":
+            # User asking about TEs
+            filtered_players = [p for p in available if p.get("position") == "TE"]
+            print(f"   Filtering to TEs, {len(filtered_players)} players")
+        elif "round" in query_text:
+            # Extract round number
+            import re
+            round_match = re.search(r'round (\d+)', query_text)
+            if round_match:
+                round_num = int(round_match.group(1))
+                # Calculate rank range for this round (10 teams)
+                # Round 1 = picks 1-10 (ranks 1-10)
+                # Round 10 = picks 91-100 (ranks 91-100)
+                start_rank = (round_num - 1) * 10 + 1
+                end_rank = round_num * 10 + 10  # Add buffer
+                filtered_players = [p for p in available if p.get("rank", 999) >= start_rank and p.get("rank", 999) <= end_rank][:20]
+                print(f"   Filtering to round {round_num} targets (rank {start_rank}-{end_rank}), {len(filtered_players)} players")
+            else:
+                # Couldn't parse round number
+                filtered_players = available[:30]
+        elif "rookie" in query_text:
+            # Looking for rookies - these are 2025 rookies
+            rookie_names = ["Ashton Jeanty", "RJ Harvey", "Omarion Hampton", "Cam Ward", "Shedeur Sanders", 
+                          "Travis Hunter", "Tyler Warren", "Luther Burden", "Tetairoa McMillan", "Jalen Royals"]
+            filtered_players = [p for p in available if any(rookie in p.get("name", "") for rookie in rookie_names)]
+            if not filtered_players:
+                # If no rookies found, show late round players as fallback
+                filtered_players = [p for p in available if p.get("rank", 999) > 150][:20]
+            print(f"   Filtering to rookies/late prospects, {len(filtered_players)} players")
+        elif "handcuff" in query_text:
+            # Looking for backup RBs with upside
+            handcuff_names = ["Trey Benson", "Jaylen Wright", "Blake Corum", "Ray Davis", "MarShawn Lloyd", 
+                            "Zach Charbonnet", "Tyler Allgeier", "Tank Bigsby", "Roschon Johnson"]
+            filtered_players = [p for p in available if any(name in p.get("name", "") for name in handcuff_names)]
+            if not filtered_players:
+                filtered_players = [p for p in available if p.get("position") == "RB" and 80 <= p.get("rank", 999) <= 150][:20]
+            print(f"   Filtering to handcuffs, {len(filtered_players)} players")
+        elif "sleeper" in query_text or "late" in query_text or "late in the draft" in query_text:
+            # User asking for sleepers/late round values
+            # For "late RBs" specifically filter to late round RBs
+            if "rb" in query_text.lower():
+                filtered_players = [p for p in available if p.get("position") == "RB" and p.get("rank", 999) > 100][:20]
+                print(f"   Filtering to late round RBs (rank 100+), {len(filtered_players)} players")
+            elif "wr" in query_text.lower():
+                filtered_players = [p for p in available if p.get("position") == "WR" and p.get("rank", 999) > 100][:20]
+                print(f"   Filtering to late round WRs (rank 100+), {len(filtered_players)} players")
+            elif "qb" in query_text.lower():
+                filtered_players = [p for p in available if p.get("position") == "QB" and p.get("rank", 999) > 80][:20]
+                print(f"   Filtering to late round QBs (rank 80+), {len(filtered_players)} players")
+            else:
+                filtered_players = [p for p in available if p.get("rank", 999) > 120][:20]
+                print(f"   Filtering to sleepers (rank 120+), {len(filtered_players)} players")
+        elif "value" in query_text or "falling" in query_text:
+            # User asking for value picks - players who often fall below their ranking
+            # Show players in the 40-90 range who are good values
+            value_targets = [
+                p for p in available 
+                if 40 <= p.get("rank", 999) <= 90
+            ][:20]
+            filtered_players = value_targets if value_targets else available[40:60]
+            print(f"   Filtering to value/falling picks (rank 40-90), {len(filtered_players)} players")
+        else:
+            print(f"   No specific filter applied, using top {len(available[:30])} players")
+        
+        # Update context with filtered players
+        context["available_players"] = filtered_players[:30] if filtered_players else available[:30]
+        print(f"   Final player list: {len(context['available_players'])} players")
+        if context["available_players"]:
+            print(f"   Top 3: {[p.get('name', 'Unknown') for p in context['available_players'][:3]]}")
+        
+        # Handle roster format (could be list or dict)
+        user_roster = context.get("user_roster", [])
+        if isinstance(user_roster, list):
+            # Keep as list, will be converted in quick_position_check if needed
+            pass
+        elif not user_roster:
+            user_roster = {}  # Empty dict if None
         
         state = SnakeDraftState(
             round=context.get("round", 1),
             pick_number=context.get("pick_number", 1),
-            user_roster=context.get("user_roster", {}),
-            available_players=context.get("available_players", []),
+            user_roster=user_roster,
+            available_players=context["available_players"],
             wr_priority_score=None,
             rb_pass_catch_scores=None,
             return_specialist_bonus=None,
@@ -497,7 +815,17 @@ class YahooSnakeDraftAgent:
             response_time_ms=None
         )
         
-        result = await self.app.ainvoke(state)
+        # Add config with thread_id for checkpointer
+        config = {"configurable": {"thread_id": "yahoo-snake-draft"}}
+        result = await self.app.ainvoke(state, config)
+        
+        # Add query-specific strategy notes
+        if "rb or wr" in query_text:
+            result["strategy_notes"] = "In Full PPR, WRs typically have more consistent floors due to reception points. Target WRs unless an elite pass-catching RB is available."
+        elif "not" in query_text and "chase" in query_text:
+            result["strategy_notes"] = "Looking at alternatives to Chase. In Full PPR, consider other elite WRs or pass-catching RBs."
+        elif "sleeper" in query_text:
+            result["strategy_notes"] = "Late-round targets in Full PPR: Focus on high-volume pass catchers and slot receivers."
         
         total_ms = int((datetime.now() - start).total_seconds() * 1000)
         

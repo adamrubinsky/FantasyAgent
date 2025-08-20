@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fantasy_content xml:lang="en-US" yahoo:uri="http://fantasysports.yahooapis.com/fantasy/v2/league/nfl.l.1246753/transactions" time="20.989179611206ms" copyright="Certain Data by Sportradar, Stats Perform and Rotowire" refresh_rate="60" xmlns:yahoo="http://www.yahooapis.com/v1/base.rng" xmlns="http://fantasysports.yahooapis.com/fantasy/v2/base.rng">
+ <league>
+  <league_key>461.l.1246753</league_key>
+  <league_id>1246753</league_id>
+  <name>Yahoo H2H-Pts 1246753</name>
+  <url>https://football.fantasysports.yahoo.com/f1/1246753</url>
+  <logo_url>https://s.yimg.com/cv/api/default/20180206/default-league-logo@2x.png</logo_url>
+  <draft_status>draft</draft_status>
+  <num_teams>10</num_teams>
+  <edit_key>1</edit_key>
+  <weekly_deadline/>
+  <league_update_timestamp/>
+  <scoring_type>head</scoring_type>
+  <league_type>public</league_type>
+  <renew/>
+  <renewed/>
+  <felo_tier>gold</felo_tier>
+  <matchup_week>1</matchup_week>
+  <iris_group_chat_id/>
+  <short_invitation_url>https://football.fantasysports.yahoo.com/f1/1246753/invitation</short_invitation_url>
+  <allow_add_to_dl_extra_pos>1</allow_add_to_dl_extra_pos>
+  <is_pro_league>0</is_pro_league>
+  <is_cash_league>0</is_cash_league>
+  <current_week>1</current_week>
+  <start_week>1</start_week>
+  <start_date>2025-09-04</start_date>
+  <end_week>17</end_week>
+  <end_date>2025-12-29</end_date>
+  <is_plus_league>0</is_plus_league>
+  <game_code>nfl</game_code>
+  <season>2025</season>
+  <transactions/>
+ </league>
+</fantasy_content>
+<!-- fantasy-sports-api- -pub-canary-production-bf1-7587dcc659-fj624 Mon Aug 18 22:58:34 UTC 2025 -->

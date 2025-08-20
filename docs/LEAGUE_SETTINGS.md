@@ -1,163 +1,75 @@
-# Fantasy Football League Settings - 2025 Season
+# User's Sleeper League Settings
 
-## Overview
-User has 3 fantasy football leagues with different platforms, scoring, and draft formats.
+## League Configuration
+- **Teams**: 12
+- **Format**: SUPERFLEX Half-PPR 
+- **Playoffs**: 6 teams, starts week 15
+- **Waiver**: FAAB (Bidding), clears Wednesday 3 AM EDT
+- **Waiver Time**: 2 days
+- **Trade Deadline**: Week 11
+- **IR Slots**: 1
+- **Draft Pick Trading**: Allowed
+- **Max Keepers**: 3
 
----
+## Roster Construction
+- **QB**: 1 (required starter)
+- **RB**: 2 (required starters)
+- **WR**: 3 (required starters) ⚠️ MORE THAN STANDARD
+- **TE**: 1 (required starter)  
+- **FLEX**: 1 (RB/WR/TE)
+- **SUPERFLEX**: 1 (QB/RB/WR/TE) - QBs get full points
+- **K**: 1 (Kicker)
+- **DST**: 1 (Defense/Special Teams)
+- **Bench**: Multiple spots
+- **IR**: 1 slot
 
-## League 1: Sleeper SUPERFLEX (PRIMARY)
-**Draft Date**: August 14, 2025 (3 days away)  
-**Platform**: Sleeper  
-**Draft Type**: Snake Draft  
-**League ID**: 1221322229137031168  
-**Team**: Roster Slot 5  
+## Scoring (Non-Standard Elements Highlighted)
 
-### Roster Positions
-- QB × 1
-- RB × 2  
-- WR × 3
-- TE × 1
-- FLEX × 2 (RB/WR/TE)
-- SUPERFLEX × 1 (QB/RB/WR/TE)
-- K × 1
-- DST × 1
-- Bench × 6
+### Passing
+- **Yards**: +0.04 per yard ⚠️ (25 yards = 1 point) - LESS than standard
+- **TD**: +4 points ⚠️ (standard is usually 6)
+- **2-Pt Conversion**: +2
+- **Interception**: -2
 
-### Scoring
-- **Format**: Half-PPR (0.5 points per reception)
-- **Passing**: 0.04 per yard (25 yards = 1 point), 4 PT passing TD
-- **Rushing**: 0.1 per yard (10 yards = 1 point), 6 PT rushing TD
-- **Receiving**: 0.1 per yard, 0.5 PPR, 6 PT receiving TD
-- **Special**: SUPERFLEX means QBs have extreme value
+### Rushing  
+- **Yards**: +0.1 per yard (10 yards = 1 point) - Standard
+- **TD**: +6 points - Standard
+- **2-Pt Conversion**: +2
 
-### Key Strategy
-- **Must have 2 QBs by Round 4**
-- Top 4 QBs (Allen/Hurts/Lamar/Mahomes) are first round picks
-- Never draft K/DST before Round 15
-- 3 keepers allowed (late-round value targets)
+### Receiving
+- **Reception**: +0.5 (Half-PPR) - Standard
+- **Yards**: +0.1 per yard (10 yards = 1 point) - Standard  
+- **TD**: +6 points - Standard
+- **2-Pt Conversion**: +2
 
----
+### Kicking
+- **All FGs**: +3 base points
+- **FG Bonus**: +0.10 per yard over 30 ⚠️ (50+ yard FGs worth 5+ points)
+- **PAT**: +1
+- **Missed FG Penalties**: -3 to -1 depending on distance ⚠️
+- **Missed PAT**: -1 ⚠️
 
-## League 2: Yahoo Snake Draft (FULL PPR)
-**Draft Date**: August 19, 2025 (8 days away)  
-**Platform**: Yahoo Fantasy  
-**Draft Type**: Snake Draft  
-**League URL**: https://football.fantasysports.yahoo.com/f1/475629/5  
-**League ID**: 475629  
-**Team ID**: 5  
+### Defense/Special Teams
+- **Defense TD**: +6
+- **Points Allowed Tiers**: 0 pts = +10, 1-6 = +7, 7-13 = +4, etc.
+- **Sacks**: +1
+- **Turnovers**: +2 (INT/Fumble Recovery)
+- **Special Teams TD**: +6 
+- **Blocked Kick**: +2
 
-### Roster Positions
-- QB × 1
-- RB × 2
-- WR × 2
-- TE × 1
-- W/R Flex × 1
-- K × 1
-- DEF × 1
-- Bench × 7
+### Misc
+- **Fumble Lost**: -2 ⚠️
+- **Fumble Recovery TD**: +6
 
-### Scoring (FULL PPR)
-- **Format**: FULL PPR (1 point per reception)
-- **Passing**: 25 yards/point, 6 PT passing TDs, -2 INT
-- **Rushing**: 10 yards/point, 6 PT rushing TDs
-- **Receiving**: 10 yards/point, 1 PPR, 6 PT receiving TDs
-- **Bonuses**: 
-  - Passing: +3 at 300y, +2 at 350y, +1 at 400y
-  - Rushing: +3 at 90y, +2 at 130y, +1 at 170y
-  - Receiving: +3 at 100y, +2 at 140y, +1 at 180y
-- **Return Scoring**: 25 yards/point, 6 PT return TDs
-- **Kickers**: 3 pts (0-39y), 4 pts (40-49y), 5 pts (50+)
-- **Defense**: Standard with points allowed scoring
+## Strategic Implications for SUPERFLEX
 
-### Key Strategy
-- WR-heavy due to FULL PPR
-- QB less valuable (only 1 starter, no SUPERFLEX)
-- Target pass-catching RBs
-- Return specialists have added value
+1. **QB Scoring**: Lower passing yards points (0.04 vs 0.06) and lower TD points (4 vs 6) makes QBs slightly LESS valuable than typical SUPERFLEX
+2. **WR Premium**: Need 3 starting WRs + FLEX eligibility = HIGH WR demand
+3. **Kicker Strategy**: Bonus points for long FGs and penalties for misses make kicker selection more important
+4. **Fumble Penalty**: -2 for fumbles makes ball security more valuable
 
----
-
-## League 3: Yahoo Auction (HALF PPR)
-**Draft Date**: August 24, 2025 (13 days away)  
-**Platform**: Yahoo Fantasy  
-**Draft Type**: AUCTION ($200 budget)  
-**League URL**: https://football.fantasysports.yahoo.com/f1/682492/2  
-**League ID**: 682492  
-**Team ID**: 2  
-
-### Roster Positions
-- QB × 1
-- WR × 2
-- RB × 2
-- TE × 1
-- W/R/T Flex × 1
-- DEF × 1
-- Bench × 5
-- IR × 1
-- **NO KICKER**
-
-### Scoring (HALF PPR)
-- **Format**: Half-PPR (0.5 points per reception)
-- **Passing**: 25 yards/point, 4 PT passing TDs, -2 INT
-- **Rushing**: 10 yards/point, 6 PT rushing TDs
-- **Receiving**: 10 yards/point, 0.5 PPR, 6 PT receiving TDs
-- **Bonuses**:
-  - Passing: +2 at 300y, +1 at 400y
-  - Rushing: +1 at 100y, +2 at 150y, +2 at 200y
-  - Receiving: +1 at 125y, +1 at 150y, +2 at 200y
-- **Defense**: Standard + 0.5 for tackles for loss
-- **No Kicker Position**
-
-### Auction Strategy
-- **Budget**: $200 total
-- **Stars & Scrubs**: Spend 70-80% on 3-4 studs
-- **Max per player**: ~$70 (35% of budget)
-- **Save $10-15** for end-game bidding wars
-- **Nominate expensive players** you don't want early
-- **Track other teams' budgets** carefully
-
----
-
-## Key Differences Between Leagues
-
-### QB Value Ranking
-1. **Sleeper SUPERFLEX**: QBs are EXTREME value (2-3 needed)
-2. **Yahoo Snake (PPR)**: QBs moderate value (6 PT passing TD helps)
-3. **Yahoo Auction (Half-PPR)**: QBs lowest value (4 PT passing TD)
-
-### WR vs RB Priority
-1. **Yahoo Snake**: WR priority (FULL PPR)
-2. **Sleeper/Yahoo Auction**: Balanced (Half-PPR)
-
-### Unique Considerations
-- **Sleeper**: SUPERFLEX spot changes everything
-- **Yahoo Snake**: Return yards scoring (target return specialists)
-- **Yahoo Auction**: No kicker, extra flex spot
-
----
-
-## Draft Priority Order
-1. **August 14**: Sleeper SUPERFLEX (current system ready)
-2. **August 19**: Yahoo Snake (need to add Yahoo monitoring)
-3. **August 24**: Yahoo Auction (need auction-specific logic)
-
----
-
-## Technical Requirements
-
-### For Yahoo Integration
-- ✅ OAuth App Created
-- ✅ Client ID/Secret Stored
-- ✅ League IDs Identified
-- ⚠️ Need: OAuth token exchange
-- ⚠️ Need: Draft monitoring endpoint
-- ⚠️ Need: Different agent logic per league
-
-### API Access Status
-- **Sleeper**: ✅ Working (public API)
-- **Yahoo**: ⚠️ OAuth configured, need token exchange
-- **FantasyPros**: ✅ Working (API key active)
-
----
-
-*Last Updated: August 11, 2025 (Day 7)*
+## Draft Strategy Priorities
+1. **WR Depth Critical**: Need 4-5 WRs minimum (3 starters + FLEX + depth)
+2. **QB Value Moderated**: Still valuable for SUPERFLEX but not as premium due to lower scoring
+3. **Late-Round Kicker**: Target accurate long-range kickers
+4. **Ball Security**: Prioritize players with low fumble rates

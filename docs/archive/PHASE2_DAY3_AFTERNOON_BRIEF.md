@@ -82,14 +82,14 @@ tail -f [server output]
 3. **Draft Monitor**: `core/draft_monitor.py`
 4. **Rankings API**: `core/official_fantasypros.py`
 5. **Yahoo Snake**: `yahoo_agents/agents/yahoo_snake_agent.py`
-6. **Yahoo Auction**: `yahoo_agents/agents/yahoo_auction_agent.py`
+6. **Sleeper Auction**: `yahoo_agents/agents/sleeper_auction_agent.py`
 
 ## Important Context
 
 ### User's Leagues
 1. **Sleeper**: 12-team SUPERFLEX, Half-PPR (draft complete)
 2. **Yahoo Snake**: 10-team, Full PPR, drafts Aug 19
-3. **Yahoo Auction**: 12-team, Half-PPR, $200 budget, drafts Aug 24
+3. **Sleeper Auction**: 12-team, Half-PPR, $200 budget, drafts Aug 24
 
 ### API Keys Required
 - ANTHROPIC_API_KEY ✅ (in .env.local)

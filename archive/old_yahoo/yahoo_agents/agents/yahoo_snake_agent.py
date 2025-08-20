@@ -527,6 +527,40 @@ class YahooSnakeDraftAgent:
         query_text = context.get("query", "").lower()
         print(f"🎯 Yahoo Snake processing query: '{query_text}'")
         
+        # Check for questions about draft position/status
+        if any(phrase in query_text for phrase in ["what pick", "draft position", "draft slot", "which pick", "my turn"]):
+            draft_slot = context.get("draft_slot", "unknown")
+            current_pick = context.get("current_pick", 1)
+            current_round = context.get("current_round", 1)
+            my_turn = context.get("my_turn", False)
+            
+            response = f"You have the **#{draft_slot} pick** in this 10-team Full PPR draft.\n\n"
+            response += f"Current status: Pick #{current_pick} (Round {current_round})\n"
+            if my_turn:
+                response += "🎯 **It's your turn to pick!**\n\n"
+                # Also give a recommendation
+                response += "Since you're up, I recommend taking the best available WR or pass-catching RB for Full PPR value."
+            else:
+                # Calculate when next pick is in snake draft
+                if draft_slot and draft_slot != "unknown":
+                    slot = int(draft_slot)
+                    # Snake draft logic
+                    if current_round % 2 == 1:  # Odd round
+                        if current_pick % 10 < slot:
+                            picks_until = slot - (current_pick % 10)
+                        else:
+                            picks_until = (20 - (current_pick % 10)) + (11 - slot)
+                    else:  # Even round  
+                        if (11 - (current_pick % 10)) < slot:
+                            picks_until = (current_pick % 10) + slot - 11
+                        else:
+                            picks_until = (11 - slot) - (current_pick % 10)
+                    
+                    if picks_until > 0:
+                        response += f"Your next pick is in **{picks_until} selections**"
+            
+            return response
+        
         # Fetch live rankings if not provided
         if not context.get("available_players"):
             live_rankings = await self._fetch_live_rankings()

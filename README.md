@@ -1,11 +1,11 @@
-# 🏈 Fantasy Football Draft Assistant
+# 🏈 FantasyAgent - Multi-Platform Draft Assistant
 
-**Multi-Platform AI-powered draft assistant for Sleeper and Yahoo leagues**
+**AI-powered fantasy football draft assistant supporting Sleeper and Yahoo leagues**
 
 [![Multi-Agent AI](https://img.shields.io/badge/AI-Claude%204%20Sonnet-blue.svg)](https://github.com/adamrubinsky/FantasyAgent)
 [![Platforms](https://img.shields.io/badge/Platforms-Sleeper%20%7C%20Yahoo-purple.svg)]()
 [![API Status](https://img.shields.io/badge/APIs-Sleeper%20%2B%20FantasyPros-brightgreen.svg)]()
-[![Performance](https://img.shields.io/badge/Response%20Time-17s-green.svg)]()
+[![Performance](https://img.shields.io/badge/Sleeper-15s%20|%20Yahoo-<3s-green.svg)]()
 
 ---
 
@@ -13,25 +13,40 @@
 
 A unified fantasy football draft assistant supporting **multiple platforms and league types**. Powered by CrewAI (Sleeper) and LangGraph (Yahoo) multi-agent systems with Claude AI integration.
 
-### 🎮 Supported Leagues
-- **Sleeper SUPERFLEX** - 12-team, Half-PPR, SUPERFLEX position
-- **Yahoo Snake Draft** - 10-team, Full PPR, 6PT passing TDs
-- **Sleeper Auction** - 12-team, Half-PPR, $200 budget (moved from Yahoo)
+### 📅 Development Phases
+
+| Phase | Dates | Platform | Draft Type | Status |
+|-------|-------|----------|------------|--------|
+| **Phase 1** | Aug 5-14 | Sleeper | Snake (SUPERFLEX) | ✅ Completed (Live draft success!) |
+| **Phase 2** | Aug 14-19 | Yahoo | Snake (Full PPR) | 🔄 Current Phase |
+| **Phase 3** | Aug 20-24 | Sleeper | Auction ($200) | 📅 Upcoming |
+
+### 🎮 Supported Platforms & Leagues
+
+#### Sleeper (Production Ready ✅)
+- **Snake Draft**: 12-team, Half-PPR, SUPERFLEX position
+  - Status: Successfully used in live draft (Aug 12)
+  - Framework: CrewAI with 4 specialized agents
+  - Response Time: 15 seconds
+- **Auction Draft**: 12-team, Half-PPR, $200 budget
+  - Status: Scheduled for Aug 24
+  - Framework: CrewAI with value optimization
+
+#### Yahoo (In Development 🔄)
+- **Snake Draft**: 10-team, Full PPR, 6PT passing TDs
+  - Status: Ready for testing (Aug 19)
+  - Framework: LangGraph for <3s response
+  - Features: Return yards scoring (25 yards/point)
 
 ### ✨ Key Features
-- 🎨 **Unified Vue.js Interface** with platform switcher
+- 🎨 **Unified Interface** with platform detection
 - 🤖 **Dual AI Systems**: CrewAI (Sleeper) + LangGraph (Yahoo)
-- 🏈 **Platform-specific rankings** with proper scoring adjustments
-- 📊 **Real-time draft monitoring** (Sleeper, Yahoo coming soon)
-- 🎯 **Proactive recommendations** panel
+- 🏈 **11,389 unified player IDs** across all platforms
+- 📊 **Real-time draft monitoring** with WebSocket support
+- 🎯 **Proactive recommendations** at 6, 3, and 0 picks ahead
 - 📈 **Keeper value scoring** with graduated blending
-- 🔄 **Quick question buttons** for common queries
-- 🌐 **Web interfaces** at http://localhost:3000 (original) and :3001 (unified)
-
-### 🏆 Current Status
-- **Sleeper**: ✅ PRODUCTION READY - Successfully used in live draft (Aug 12)
-- **Yahoo**: ⚠️ In Development - Agents built, pending MemorySaver fix
-- **Unified Platform**: ✅ Working - Vue.js interface with platform switching
+- 🔄 **MCP Integration** for FantasyPros data
+- 🌐 **Web interface** at http://localhost:3001 (unified)
 
 ---
 
@@ -39,9 +54,9 @@ A unified fantasy football draft assistant supporting **multiple platforms and l
 
 ### Prerequisites
 - Python 3.10+
-- Sleeper account with league access
+- Sleeper/Yahoo account with league access
 - Anthropic API key (for Claude)
-- FantasyPros API key (optional but recommended)
+- FantasyPros MCP server configured
 
 ### Installation
 
@@ -68,192 +83,239 @@ SLEEPER_LEAGUE_ID=your-league-id
 # Anthropic Claude API (required)
 ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
 
-# FantasyPros API (recommended for SUPERFLEX rankings)
-FANTASYPROS_API_KEY=your-fantasypros-key
+# Yahoo (for OAuth)
+YAHOO_CLIENT_ID=your-client-id
+YAHOO_CLIENT_SECRET=your-client-secret
 ```
 
 ### Running the Assistant
 
 ```bash
-# Original Sleeper-only server
-python3 dev_server.py
-# Access at: http://localhost:3000
-
-# NEW: Unified multi-platform server
+# Start unified server (recommended)
 python3 unified_server.py
 # Access at: http://localhost:3001
+
+# Or use development server for testing
+python3 dev_server.py
+# Access at: http://localhost:3000
 ```
 
 ---
 
 ## 🏗️ System Architecture
 
-### Core Components
+### Directory Structure (Phase 2 Day 4 - Reorganized)
 
 ```
 FantasyAgent/
-├── agents/                      # Sleeper CrewAI system
-│   └── draft_crew.py            # Main AI orchestration
-├── yahoo_agents/                # Yahoo LangGraph system
-│   ├── agents/                  # Snake and Auction agents
-│   └── clients/                 # Yahoo API integration
-├── api/                         # External API integrations
-│   └── sleeper_client.py        # Sleeper draft monitoring
-├── core/                        # Shared business logic
-│   ├── draft_monitor.py         # Real-time draft tracking
-│   └── official_fantasypros.py  # Platform-specific rankings
-├── templates/                   # Web interfaces
-│   ├── dev.html                 # Original Sleeper UI
-│   └── unified.html             # NEW: Vue.js unified UI
-├── dev_server.py                # Original Sleeper server
-├── unified_server.py            # NEW: Multi-platform server
-└── server.py                    # Alternative unified server
+├── 🚀 Core Entry Points
+│   ├── unified_server.py       # Main unified server
+│   ├── dev_server.py           # Development server
+│   └── main.py                 # CLI entry point
+│
+├── 📂 platforms/               # Platform-specific code
+│   ├── sleeper/                # Sleeper (PRODUCTION)
+│   │   └── agents/             # CrewAI agents
+│   │       └── draft_crew.py   # 4-agent system
+│   ├── yahoo/                  # Yahoo (DEVELOPMENT)
+│   │   └── agents/             # LangGraph agents
+│   │       └── yahoo_snake_agent.py  # Snake draft only
+│   └── shared/                 # Shared utilities
+│
+├── 📂 core/                    # Core functionality
+│   ├── official_fantasypros.py # MCP integration
+│   ├── rankings_manager.py     # Caching (30-min TTL)
+│   └── draft_monitor.py        # Real-time tracking
+│
+├── 📂 tests/                   # All test files
+│   └── yahoo/                  # Yahoo-specific tests
+│
+├── 📂 data/                    # Data and mappings
+│   └── unified_player_mapping.json # 11,389 players
+│
+└── 📂 archive/                 # Old code (archived)
 ```
 
-### Data Flow
-1. **Draft Monitoring** → Sleeper API (5-second polling)
-2. **Rankings Fetch** → FantasyPros API with `position='OP'` for SUPERFLEX
-3. **Player Filtering** → Cross-platform ID mapping + keeper detection
-4. **AI Analysis** → CrewAI agents with Claude 4 Sonnet
-5. **Recommendations** → Web UI with real-time updates
+### Data Flow Architecture
+
+```
+User Request
+    ↓
+unified_server.py (Platform Detection)
+    ↓
+┌─────────────┴─────────────┐
+│                           │
+Sleeper Platform      Yahoo Platform
+    ↓                       ↓
+CrewAI Agents         LangGraph Agents
+(15s response)        (<3s response)
+    ↓                       ↓
+└─────────────┬─────────────┘
+              ↓
+       MCP Integration
+              ↓
+      FantasyPros API
+              ↓
+         Response
+```
 
 ---
 
-## 📊 Key Features Explained
+## 📊 Key Components
 
-### SUPERFLEX Rankings (Fixed!)
+### 1. Unified Player Mapping System
+- **11,389 players** mapped across all platforms
+- Solves ID mismatch issues (Sleeper '4984' ↔ FantasyPros '17298')
+- Enables robust cross-platform filtering
+
+### 2. Platform-Specific Agents
+
+#### Sleeper Agent (`platforms/sleeper/agents/draft_crew.py`)
 ```python
-# Uses FantasyPros 'OP' (Offensive Player) position for true SUPERFLEX values
-params = {
-    'position': 'OP',    # This is the key!
-    'scoring': 'HALF',   # Half-PPR
-    'type': 'DRAFT',     # Draft rankings
-    'week': 0            # Season-long
-}
-# Result: Tyreek Hill at #47 (correct) vs #30 (standard)
+# 4 specialized CrewAI agents:
+1. Value Analyst - Identifies best value picks
+2. Position Strategist - Manages roster balance
+3. Risk Assessor - Evaluates player risks
+4. Final Recommender - Synthesizes recommendations
 ```
 
-### CrewAI Configuration
+#### Yahoo Agent (`platforms/yahoo/agents/yahoo_snake_agent.py`)
 ```python
-# Critical: Set environment variable BEFORE importing
-os.environ["ANTHROPIC_API_KEY"] = api_key
-
-# Don't pass api_key parameter - causes auth errors!
-llm = LLM(
-    model="claude-sonnet-4-20250514",  # Claude 4 Sonnet
-    temperature=0.7,
-    max_tokens=4000
-)
+# LangGraph state machine for <3s response:
+- Parallel analysis execution
+- Smart conditional routing
+- Haiku for speed, Sonnet for synthesis
+- Full PPR + Return yards adjustments
 ```
 
-### Proactive Recommendations (Enhanced!)
-- Triggers at **6 picks** before your turn (initial analysis)
-- Updates at **3 picks** before your turn (refined recommendations)  
-- Triggers at **0 picks** (your pick) with instant 5-second analysis
-- Shows reasoning for each recommendation (keeper value, position need, etc.)
-- Displays alternatives for each recommended player
+### 3. Proactive Recommendations
+- **6 picks ahead**: Initial analysis
+- **3 picks ahead**: Refined recommendations
+- **0 picks (your turn)**: 5-second instant analysis
+- Shows reasoning and alternatives
 
 ---
 
 ## 🎮 Usage Guide
 
-### Starting a Mock Draft
+### Starting a Draft Session
 
-1. **Start the server**: `python3 dev_server.py`
-2. **Open browser**: http://localhost:3000
-3. **Connect to draft**: Enter your Sleeper draft ID
-4. **Monitor in real-time**: See picks as they happen
-5. **Get recommendations**: Ask questions in the chat
+1. **Start server**: `python3 unified_server.py`
+2. **Open browser**: http://localhost:3001
+3. **Select platform**: Sleeper or Yahoo
+4. **Enter draft ID**: Your draft room ID
+5. **Get recommendations**: Real-time AI assistance
 
 ### Example Questions
-- "Who should I draft with my next pick?"
+- "Who should I draft next?"
 - "Compare Josh Allen vs Lamar Jackson"
-- "What positions should I target?"
-- "Show me available RBs"
-
-### Understanding Recommendations
-The AI considers:
-- Your current roster composition
-- SUPERFLEX league scoring (QBs valued higher)
-- Position scarcity (3 WR requirement)
-- Bye week distribution
-- Available players in your draft
-
----
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Issue**: AI recommendations take too long (>30s)
-- **Solution**: Optimized to 15s with timeout handling (Day 5 fix)
-
-**Issue**: Wrong player rankings (QBs undervalued)
-- **Solution**: Fixed with FantasyPros 'OP' position parameter
-
-**Issue**: System shows "0 QB, 0 RB, 0 WR" in mock drafts
-- **Solution**: Fixed roster detection for mock drafts (Day 5 fix)
-
-**Issue**: Drafted players still being recommended
-- **Solution**: Fixed with cross-platform player ID mapping
-
-**Issue**: CrewAI authentication errors
-- **Solution**: Set ANTHROPIC_API_KEY env var before importing
+- "What RBs are available?"
+- "Should I reach for my watchlist player?"
+- "What's my roster weakness?"
 
 ---
 
 ## 📈 Performance Metrics
 
-- **API Response Times**: 
-  - Sleeper: <500ms
-  - FantasyPros: <1s
-- **AI Recommendations**: 15 seconds (down from 45s)
-- **Draft Monitoring**: 5-second intervals
-- **Cache Hit Rate**: >90%
-- **Player Database**: 11,389 mapped players
+| Metric | Sleeper | Yahoo |
+|--------|---------|-------|
+| Response Time | 15 seconds (achieved) | <3 seconds (target) |
+| API Latency | <500ms | <1s |
+| Cache Hit Rate | >90% | >90% |
+| Player Database | 11,389 unified IDs | Same |
+| Accuracy | Production tested ✅ | In testing 🔄 |
 
 ---
 
-## 🗺️ Roadmap
+## 🔧 Recent Updates (Phase 2 Day 4 - Aug 18)
 
-### Completed (August 12, 2025)
-- ✅ SUPERFLEX rankings fixed (using OP parameter)
-- ✅ CrewAI/Claude 4 integration
-- ✅ Mock draft testing successful
-- ✅ Performance optimization (5s proactive at pick)
-- ✅ Keeper value scoring with graduated blending
-- ✅ Watchlist discipline (no reaching)
-- ✅ Proactive triggers at 6, 3, and 0 picks
-- ✅ Reasoning display in recommendations
-- ✅ K/DEF excluded from keeper logic
-- ✅ Agent performing as intended!
+### ✅ Completed Today
+1. **Project Reorganization**: Complete file structure cleanup
+2. **Import Path Fixes**: All using `platforms/` structure now
+3. **Context Fix**: CrewAI now receives full draft data (draft_picks, available_players)
+4. **Documentation**: Updated PROJECT_STRUCTURE.md, ARCHITECTURE.md
+5. **Archive**: Old files moved to archive folders
 
-### Next Priority  
-- [ ] Stress testing with multiple mock drafts
-- [ ] Real draft preparation
-- [ ] Performance monitoring
+### 🔄 Current Focus (Phase 2)
+- Yahoo Snake draft preparation for Aug 19
+- Testing <3s response times with LangGraph
+- Full PPR + return yards scoring adjustments
 
-### Future Enhancements
-- [ ] AWS Bedrock AgentCore deployment
-- [ ] Yahoo Fantasy integration
-- [ ] Voice notifications
-- [ ] Historical pattern analysis
-- [ ] Trade analyzer
+---
+
+## 📅 Upcoming Drafts
+
+| Date | Platform | Type | League | Key Settings |
+|------|----------|------|--------|--------------|
+| **Aug 19** | Yahoo | Snake | League 2 | 10-team, Full PPR, 6PT Pass TD, Return yards |
+| **Aug 24** | Sleeper | Auction | League 3 | 12-team, Half PPR, $200 budget, NO KICKER |
+
+---
+
+## 🗺️ Development Roadmap
+
+### Phase 1 (Aug 5-14) - Sleeper Snake ✅
+- [x] CrewAI integration
+- [x] SUPERFLEX rankings (OP position)
+- [x] Real-time draft monitoring
+- [x] Proactive recommendations
+- [x] **Live draft success!** (Aug 12)
+
+### Phase 2 (Aug 14-19) - Yahoo Snake 🔄
+- [x] LangGraph agent implementation
+- [x] OAuth integration
+- [x] Full PPR adjustments
+- [ ] Return yards scoring (25 yards/point)
+- [ ] Live mock draft testing
+- [ ] <3s response verification
+
+### Phase 3 (Aug 20-24) - Sleeper Auction 📅
+- [ ] Auction value calculations
+- [ ] Budget management logic
+- [ ] Stars & Scrubs strategy (70% on 3-4 elite)
+- [ ] Real-time bidding recommendations
+- [ ] No kicker position handling
 
 ---
 
 ## 📚 Documentation
 
-- [System Architecture](docs/architecture/system_flow_diagram_v2.md)
-- [API Integration Guide](docs/planning/brainstorming.md)
-- [Development Log](docs/ACTION_LOG.md)
-- [Project Structure](docs/PROJECT_STRUCTURE.md)
+- [Project Structure](PROJECT_STRUCTURE.md) - Detailed file organization
+- [Architecture](docs/ARCHITECTURE.md) - System design
+- [Action Log](action_log.md) - Development history
+- [Claude Instructions](CLAUDE.md) - AI assistant guidelines
+- [League Settings](docs/league_settings.md) - Specific league configurations
+
+---
+
+## ⚠️ Important Notes
+
+### Development Guidelines
+- **DO NOT MODIFY** `platforms/sleeper/agents/` - production system
+- Keep Sleeper and Yahoo systems **isolated**
+- Yahoo requires **<3s response** for 90-second draft clock
+- Use `unified_server.py` for all testing
+- All new development uses `platforms/` structure
+
+### Critical Context Passing
+The unified server MUST pass full draft context to agents:
+```python
+context["draft_picks"] = status.get("draftPicks", [])
+context["available_players"] = status.get("availablePlayers", [])
+context["recent_picks"] = status.get("recentPicks", [])
+```
 
 ---
 
 ## 🤝 Contributing
 
 This project is actively maintained for the 2025 fantasy season. Issues and PRs welcome!
+
+### Testing Requirements
+1. Run comprehensive test suites before commits
+2. Monitor response times (Yahoo <3s requirement)
+3. Test with mock drafts before live drafts
+4. Verify league-specific adjustments work
 
 ---
 
@@ -265,11 +327,12 @@ MIT License - See LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- **CrewAI** - Multi-agent orchestration framework
-- **Anthropic** - Claude 4 Sonnet AI model
-- **Sleeper** - Fantasy platform and API
-- **FantasyPros** - Rankings and projections data
+- **CrewAI** - Multi-agent orchestration for Sleeper
+- **LangGraph** - High-performance state machines for Yahoo
+- **Anthropic** - Claude AI models
+- **Sleeper & Yahoo** - Fantasy platforms and APIs
+- **FantasyPros** - Rankings and projections via MCP
 
 ---
 
-*Built with 🤖 by Adam Rubinsky | Powered by Claude Code*
+*Built with 🤖 by Adam Rubinsky | Phase 2 Day 4 - August 18, 2025*

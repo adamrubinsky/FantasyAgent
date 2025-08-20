@@ -539,6 +539,10 @@ class FantasyDraftCrew:
         # Update session context
         if context:
             self.session_context.update(context)
+            # LOG CONTEXT for debugging
+            print(f"📊 Context updated with {len(context.get('draft_picks', []))} draft picks")
+            print(f"📊 Context has {len(context.get('available_players', []))} available players")
+            print(f"📊 User roster: {len(context.get('roster', []))} players")
         
         # If we have an active draft connection, update with live data
         if self.draft_active:
@@ -645,8 +649,10 @@ class FantasyDraftCrew:
             
             # Get draft context with enhancements
             draft_context = ""
-            if self.draft_active:
-                draft_picks = self.session_context.get('draft_picks', [])
+            
+            # Check if we have draft data from context (even without active connection)
+            draft_picks = self.session_context.get('draft_picks', [])
+            if draft_picks or self.draft_active:
                 available_players = self.session_context.get('available_players', [])
                 current_pick = self.session_context.get('current_pick', 1)
                 user_next_pick = self.session_context.get('user_next_pick')
@@ -689,6 +695,15 @@ class FantasyDraftCrew:
                 
                 if user_roster:
                     print(f"✅ Found {len(user_roster)} picks for roster slot {user_roster_id}")
+                    # Log the actual players on the user's roster for debugging
+                    roster_names = []
+                    for pick in user_roster[:10]:  # Show first 10
+                        metadata = pick.get('metadata', {})
+                        name = f"{metadata.get('first_name', '')} {metadata.get('last_name', '')}".strip()
+                        if name:
+                            roster_names.append(name)
+                    if roster_names:
+                        print(f"📋 User's roster includes: {', '.join(roster_names)}")
                 
                 # Extract drafted player IDs from Sleeper draft picks 
                 # Sleeper API provides player_id directly in each draft pick
@@ -1090,8 +1105,36 @@ Based on your roster needs and available players, consider drafting from the lis
             # Add drafted count for context
             available_section = f"\n\n📊 DRAFT STATUS: {len(draft_picks)} players drafted, {len(available_players)} available" + available_section
         
-        # Combine both datasets
-        live_rankings = full_rankings + available_section
+        # Combine both datasets - but if we have draft context, prioritize available players
+        if draft_picks and available_players:
+            # Get user's roster for explicit exclusion
+            user_roster = self.session_context.get('roster', [])
+            user_players = []
+            for player in user_roster:
+                name = player.get('player_name', player.get('name', ''))
+                if name:
+                    user_players.append(name)
+            
+            roster_warning = ""
+            if user_players:
+                roster_warning = f"\n\n🚨 USER ALREADY HAS THESE PLAYERS - DO NOT RECOMMEND THEM:\n" + "\n".join(f"  - {p}" for p in user_players)
+            
+            # When draft is active, focus on available players
+            live_rankings = f"""
+🚨 CRITICAL INSTRUCTIONS:
+1. This is an ACTIVE/COMPLETED draft with {len(draft_picks)} picks made
+2. ONLY recommend players from the "ACTUALLY AVAILABLE TO DRAFT" list below
+3. DO NOT recommend any player from the "Full Rankings" section unless they appear in the AVAILABLE list
+4. The user has already drafted {len(user_roster)} players - do not recommend them again
+{roster_warning}
+
+{available_section}
+
+Full Rankings (FOR VALUE REFERENCE ONLY - most are already drafted):
+{full_rankings}"""
+        else:
+            # No draft context, use full rankings
+            live_rankings = full_rankings + available_section
         
         # Extract player names from question for specific projections
         player_names = []

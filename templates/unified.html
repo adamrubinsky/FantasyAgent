@@ -117,13 +117,11 @@
                         <div class="flex items-center space-x-3">
                             <i class="fas fa-user text-yellow-600"></i>
                             <div v-if="selectedPlatform === 'sleeper'" class="flex items-center space-x-2">
-                                <label class="text-sm text-gray-700">Draft Slot:</label>
-                                <input v-model.number="userDraftSlot" 
-                                       type="number" 
-                                       min="1" 
-                                       max="12"
-                                       placeholder="1-12"
-                                       class="w-20 px-2 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
+                                <label class="text-sm text-gray-700">Draft Slot or User ID:</label>
+                                <input v-model="userDraftSlot" 
+                                       type="text" 
+                                       placeholder="1-12 or User ID"
+                                       class="w-32 px-2 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
                             </div>
                             <div v-else-if="selectedPlatform === 'yahoo-snake'" class="flex items-center space-x-2">
                                 <label class="text-sm text-gray-700">Draft Position:</label>
@@ -225,7 +223,7 @@
                             <div v-for="position in positions" :key="position" 
                                  class="roster-card border rounded p-2">
                                 <div class="font-medium text-sm text-gray-700 mb-1">
-                                    {{ position }} ({{ getRosterCount(position) }}/{{ getPositionLimit(position) }})
+                                    {{ getPositionDisplayName(position) }} ({{ getRosterCount(position) }}/{{ getPositionLimit(position) }})
                                 </div>
                                 <div class="space-y-1">
                                     <div v-for="player in getRosterByPosition(position)" 
@@ -511,7 +509,8 @@
                     
                     // Roster
                     roster: [],
-                    positions: ['QB', 'RB', 'WR', 'TE', 'DST', 'K'],
+                    myRoster: [],  // User's actual drafted players
+                    positions: [],  // Will be set based on selected platform
                     
                     // Chat
                     messages: [],
@@ -526,6 +525,9 @@
                     
                     // Players
                     availablePlayers: [],
+                    allPlayers: [],  // All players from rankings
+                    draftedPlayerIds: [],  // IDs of drafted players
+                    draftedPlayerNames: [],  // Names of all drafted players
                     positionFilter: 'ALL',
                     recentPicks: []
                 };
@@ -545,6 +547,9 @@
             methods: {
                 async switchPlatform() {
                     if (!this.selectedPlatform) return;
+                    
+                    // Update positions for the selected platform
+                    this.updatePositionsForPlatform();
                     
                     // Update platform info
                     const platformConfigs = {
@@ -652,11 +657,8 @@
                         
                         console.log(`Loaded ${rankings.length} players for ${this.selectedPlatform}`);
                         
-                        // Clear existing players
-                        this.availablePlayers = [];
-                        
                         // Transform to player format - handle both field naming conventions
-                        this.availablePlayers = rankings.slice(0, 200).map(player => ({
+                        this.allPlayers = rankings.slice(0, 200).map(player => ({
                             id: player.player_id || player.id,
                             name: player.player_name || player.name,
                             position: player.player_position_id || player.position,
@@ -665,6 +667,14 @@
                             value: this.selectedPlatform === 'sleeper-auction' ? 
                                    player.auction_value || this.calculateAuctionValue(player.rank_ecr || player.rank || 999) : null
                         }));
+                        
+                        // Initially all players are available (will be filtered when draft data loads)
+                        this.availablePlayers = [...this.allPlayers];
+                        
+                        // If we have drafted player IDs, filter now
+                        if (this.draftedPlayerIds && this.draftedPlayerIds.length > 0) {
+                            this.updateAvailablePlayers();
+                        }
                         
                         // Log first few players to verify correct rankings
                         console.log('Top 3 players:', this.availablePlayers.slice(0, 3).map(p => `${p.name} (${p.position})`));
@@ -783,16 +793,123 @@
                 
                 updateDraftStatus(data) {
                     this.draftStatus = data.draftStatus || this.draftStatus;
-                    this.roster = data.roster || this.roster;
-                    this.recentPicks = data.recentPicks || this.recentPicks;
+                    
+                    // Update roster with proper data
+                    if (data.roster) {
+                        this.myRoster = data.roster;
+                        this.roster = data.roster;  // For backward compatibility
+                    }
+                    
+                    // Update recent picks with player names
+                    if (data.recentPicks) {
+                        this.recentPicks = data.recentPicks.map(pick => ({
+                            id: pick.pick_no,
+                            player: pick.metadata?.first_name && pick.metadata?.last_name ? 
+                                    `${pick.metadata.first_name} ${pick.metadata.last_name}` : 
+                                    pick.player_id || 'Unknown Player',
+                            number: pick.pick_no,
+                            team: pick.picked_by,
+                            round: pick.round
+                        }));
+                    }
+                    
+                    // Store drafted player names to filter available players
+                    if (data.draftedPlayerNames) {
+                        this.draftedPlayerNames = data.draftedPlayerNames;
+                        // Filter available players to exclude drafted ones
+                        this.updateAvailablePlayers();
+                    }
+                    
+                    // Backward compatibility with IDs
+                    if (data.draftedPlayerIds) {
+                        this.draftedPlayerIds = data.draftedPlayerIds;
+                    }
                     
                     if (this.selectedPlatform === 'sleeper-auction' && data.budget !== undefined) {
                         this.auctionBudget = data.budget;
                     }
                 },
                 
+                updateAvailablePlayers() {
+                    // Filter out drafted players from the available list
+                    // Since IDs don't match between Sleeper and FantasyPros, match by name
+                    if (this.allPlayers) {
+                        // Helper function to normalize player names (remove Jr., Sr., II, III, etc.)
+                        const normalizeName = (name) => {
+                            let normalized = name.toLowerCase()
+                                .replace(/\s+(jr\.?|sr\.?|ii+|iii+|iv|v)$/i, '')  // Remove suffixes
+                                .replace(/['']/g, '')  // Normalize apostrophes
+                                .trim();
+                            
+                            // Special case: Cam Ward (rookie QB) is "Cameron Ward" in Sleeper
+                            if (normalized === 'cam ward') {
+                                return ['cam ward', 'cameron ward'];
+                            }
+                            
+                            return normalized;
+                        };
+                        
+                        // Create a set of normalized drafted player names (from all teams, not just ours)
+                        const draftedNames = new Set();
+                        (this.draftedPlayerNames || []).forEach(name => {
+                            const normalized = normalizeName(name);
+                            if (Array.isArray(normalized)) {
+                                normalized.forEach(n => draftedNames.add(n));
+                            } else {
+                                draftedNames.add(normalized);
+                            }
+                        });
+                        
+                        // Filter out players whose normalized names match drafted players
+                        this.availablePlayers = this.allPlayers.filter(player => {
+                            const normalized = normalizeName(player.name);
+                            let isDrafted = false;
+                            
+                            if (Array.isArray(normalized)) {
+                                isDrafted = normalized.some(n => draftedNames.has(n));
+                            } else {
+                                isDrafted = draftedNames.has(normalized);
+                            }
+                            
+                            // Log mismatches for debugging
+                            if (isDrafted && player.rank <= 50) {
+                                console.log(`Filtering out drafted player: ${player.name}`);
+                            }
+                            
+                            return !isDrafted;
+                        }).slice(0, 50);  // Top 50 available
+                        
+                        console.log(`Filtered to ${this.availablePlayers.length} available players from ${this.allPlayers.length} total`);
+                        console.log(`Excluded ${draftedNames.size} drafted players`);
+                    }
+                },
+                
                 getRosterByPosition(position) {
-                    return this.roster.filter(p => p.position === position);
+                    // Use myRoster which contains the actual drafted players
+                    const roster = this.myRoster || this.roster || [];
+                    
+                    // Map position codes for flexibility
+                    const positionMap = {
+                        'DST': ['DST', 'DEF'],
+                        'DEF': ['DST', 'DEF'],
+                        'Bench': ['QB', 'RB', 'WR', 'TE', 'K', 'DST', 'DEF'],  // All positions can be on bench
+                        'BN': ['QB', 'RB', 'WR', 'TE', 'K', 'DST', 'DEF'],
+                        'FLEX': ['RB', 'WR', 'TE'],
+                        'SUPERFLEX': ['QB', 'RB', 'WR', 'TE'],
+                        'W/R': ['WR', 'RB'],
+                        'W/R/T': ['WR', 'RB', 'TE']
+                    };
+                    
+                    // For flex positions, check if player fits
+                    const validPositions = positionMap[position] || [position];
+                    
+                    if (position === 'Bench' || position === 'BN') {
+                        // For bench, return all players beyond starting lineup
+                        // This is simplified - would need proper logic based on league settings
+                        return roster.slice(9);  // Assuming 9 starters
+                    }
+                    
+                    return roster.filter(p => validPositions.includes(p.position));
                 },
                 
                 getRosterCount(position) {
@@ -800,12 +917,72 @@
                 },
                 
                 getPositionLimit(position) {
+                    // Detailed roster requirements based on league settings
                     const limits = {
-                        'sleeper': { QB: 3, RB: 6, WR: 6, TE: 2, DST: 1, K: 1 },
-                        'yahoo-snake': { QB: 2, RB: 5, WR: 5, TE: 2, DST: 1, K: 1 },
-                        'sleeper-auction': { QB: 2, RB: 5, WR: 5, TE: 2, DST: 1, K: 0 }
+                        'sleeper': {  // SUPERFLEX League - 18 total roster spots
+                            'QB': 3,      // 1 QB + 1 SUPERFLEX (shown as QB) + 1 bench
+                            'RB': 5,      // 2 RB + 2 FLEX potential + bench
+                            'WR': 6,      // 3 WR + 2 FLEX potential + bench
+                            'TE': 2,      // 1 TE + 1 FLEX potential/bench
+                            'FLEX': 2,    // 2 FLEX spots
+                            'SUPERFLEX': 1, // 1 SUPERFLEX spot
+                            'K': 1,       // 1 Kicker
+                            'DST': 1,     // 1 Defense
+                            'Bench': 6    // 6 Bench spots
+                        },
+                        'yahoo-snake': {  // Full PPR - 16 total roster spots
+                            'QB': 1,      // 1 QB
+                            'RB': 2,      // 2 RB
+                            'WR': 2,      // 2 WR  
+                            'TE': 1,      // 1 TE
+                            'W/R': 1,     // 1 W/R Flex
+                            'K': 1,       // 1 Kicker
+                            'DEF': 1,     // 1 Defense
+                            'BN': 7       // 7 Bench spots
+                        },
+                        'sleeper-auction': {  // Half PPR - 13 total roster spots (NO KICKER)
+                            'QB': 1,      // 1 QB
+                            'RB': 2,      // 2 RB
+                            'WR': 2,      // 2 WR
+                            'TE': 1,      // 1 TE
+                            'W/R/T': 1,   // 1 W/R/T Flex
+                            'DEF': 1,     // 1 Defense
+                            'BN': 5,      // 5 Bench spots
+                            'IR': 1       // 1 IR spot
+                        }
                     };
                     return limits[this.selectedPlatform]?.[position] || 0;
+                },
+                
+                updatePositionsForPlatform() {
+                    // Set positions array based on selected platform
+                    const platformPositions = {
+                        'sleeper': ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPERFLEX', 'K', 'DST', 'Bench'],
+                        'yahoo-snake': ['QB', 'RB', 'WR', 'TE', 'W/R', 'K', 'DEF', 'BN'],
+                        'sleeper-auction': ['QB', 'RB', 'WR', 'TE', 'W/R/T', 'DEF', 'BN', 'IR']
+                    };
+                    this.positions = platformPositions[this.selectedPlatform] || [];
+                },
+                
+                getPositionDisplayName(position) {
+                    // Map position codes to friendly display names
+                    const displayNames = {
+                        'QB': 'Quarterback',
+                        'RB': 'Running Back',
+                        'WR': 'Wide Receiver',
+                        'TE': 'Tight End',
+                        'FLEX': 'Flex (RB/WR/TE)',
+                        'SUPERFLEX': 'SuperFlex (QB/RB/WR/TE)',
+                        'W/R': 'W/R Flex',
+                        'W/R/T': 'W/R/T Flex',
+                        'K': 'Kicker',
+                        'DST': 'Defense/ST',
+                        'DEF': 'Defense',
+                        'Bench': 'Bench',
+                        'BN': 'Bench',
+                        'IR': 'Injured Reserve'
+                    };
+                    return displayNames[position] || position;
                 },
                 
                 formatTime(timestamp) {
@@ -836,7 +1013,7 @@
                 getDraftUrlHelp() {
                     const help = {
                         'sleeper': 'Copy the URL from your Sleeper draft room',
-                        'yahoo-snake': 'Copy the URL from your Yahoo snake draft room',
+                        'yahoo-snake': 'Any Yahoo URL works (draftclient, league page, team page)',
                         'sleeper-auction': 'Copy the URL from your Sleeper auction draft room'
                     };
                     return help[this.selectedPlatform] || 'Enter the URL of your live draft';
@@ -917,7 +1094,7 @@
                 },
                 
                 startDraftMonitoring() {
-                    // Poll for draft updates every 5 seconds
+                    // Poll for draft updates every 30 seconds (reduced from 5s to avoid Yahoo rate limits)
                     this.draftMonitorInterval = setInterval(async () => {
                         try {
                             const response = await fetch('/api/draft-status', {
@@ -944,7 +1121,7 @@
                         } catch (error) {
                             console.error('Draft monitoring error:', error);
                         }
-                    }, 5000); // Poll every 5 seconds
+                    }, 10000); // Poll every 10 seconds (balanced for live updates without rate limits)
                 }
             },
             

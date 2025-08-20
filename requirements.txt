@@ -31,6 +31,9 @@ pydantic==2.5.2
 anthropic==0.21.3
 openai>=1.13.3  # Used by CrewAI
 litellm==1.74.3  # Used by CrewAI
+langgraph==0.2.0  # Used by Yahoo agents
+langchain==0.2.0  # Used by Yahoo agents
+langchain-anthropic==0.1.15  # Used by Yahoo agents
 
 # CrewAI dependencies
 chromadb>=0.5.23
