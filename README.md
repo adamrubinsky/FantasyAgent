@@ -104,7 +104,7 @@ python3 dev_server.py
 
 ## 🏗️ System Architecture
 
-### Directory Structure (Phase 2 Day 4 - Reorganized)
+### Directory Structure (Phase 3 Day 2 - Updated)
 
 ```
 FantasyAgent/
@@ -116,7 +116,10 @@ FantasyAgent/
 ├── 📂 platforms/               # Platform-specific code
 │   ├── sleeper/                # Sleeper (PRODUCTION)
 │   │   └── agents/             # CrewAI agents
-│   │       └── draft_crew.py   # 4-agent system
+│   │       ├── draft_crew.py   # Snake draft (4-agent)
+│   │       ├── sleeper_auction_crew_fast.py # Auction (<3s)
+│   │       ├── auction_cache.py    # Performance cache
+│   │       └── auction_value_calculator.py # VBD values
 │   ├── yahoo/                  # Yahoo (DEVELOPMENT)
 │   │   └── agents/             # LangGraph agents
 │   │       └── yahoo_snake_agent.py  # Snake draft only

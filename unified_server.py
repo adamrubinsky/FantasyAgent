@@ -118,21 +118,24 @@ class ServerState:
         """Get or create Sleeper Auction agent"""
         if self.sleeper_auction_agent is None:
             try:
-                # Use the Sleeper auction agent 
-                from platforms.sleeper.agents.sleeper_auction_agent import SleeperAuctionAgent
-                api_key = os.getenv("ANTHROPIC_API_KEY")
-                if not api_key:
-                    raise ValueError("ANTHROPIC_API_KEY not found")
-                self.sleeper_auction_agent = SleeperAuctionAgent(anthropic_api_key=api_key)
-                logger.info("Sleeper Auction agent initialized")
+                # Use the optimized fast CrewAI auction agent (<3s response) 
+                from platforms.sleeper.agents.sleeper_auction_crew_fast import SleeperAuctionCrewFast
+                # API key will be loaded automatically from .env.local
+                self.sleeper_auction_agent = SleeperAuctionCrewFast()
+                logger.info("Sleeper Auction Fast CrewAI agent initialized with <3s target")
             except Exception as e:
                 logger.error(f"Failed to initialize Sleeper Auction agent: {e}")
                 # Return a mock agent for now
                 class MockAgent:
-                    async def get_bid_recommendation(self, context):
-                        return f"Sleeper Auction agent not available: {str(e)}"
-                    async def get_recommendation(self, query, context):
+                    async def analyze_nomination(self, player, current_bid, context):
+                        return {
+                            "action": "PASS",
+                            "reasoning": f"Agent not available: {str(e)}"
+                        }
+                    async def analyze_draft_question(self, query, context):
                         return f"Sleeper Auction agent not available. Your query: {query}"
+                    def get_proactive_analysis(self, context):
+                        return {"title": "Agent Offline", "insights": [str(e)]}
                 self.sleeper_auction_agent = MockAgent()
         return self.sleeper_auction_agent
 
@@ -302,9 +305,7 @@ async def draft_query(query: DraftQuery):
             
         elif query.platform == "sleeper-auction":
             agent = state.get_sleeper_auction_agent()
-            # Sleeper Auction agent uses get_bid_recommendation
             context = query.context or {}
-            context["query"] = query.query
             
             # Get current draft status if connected
             if query.platform in draft_monitor.connected_drafts:
@@ -312,19 +313,38 @@ async def draft_query(query: DraftQuery):
                 if draft_status.get("status") == "success":
                     # Add auction-specific context
                     my_roster = draft_status.get("myRoster", [])
+                    
+                    # Convert roster list to position-based dict
+                    roster_by_position = {}
+                    for player in my_roster:
+                        # Need to get player position from somewhere
+                        # For now, use a simplified structure
+                        roster_by_position[player.get("player_id")] = player
+                    
+                    # Get list of drafted players
+                    drafted_players = draft_status.get("draftedPlayers", [])
+                    drafted_player_names = [p.get("name") for p in drafted_players if p.get("name")]
+                    
                     context.update({
                         "current_player": draft_status.get("draftStatus", {}).get("currentPlayer"),
                         "current_bid": draft_status.get("draftStatus", {}).get("currentBid", 0),
                         "my_budget": draft_status.get("draftStatus", {}).get("myBudget", 200),
                         "avg_budget": draft_status.get("draftStatus", {}).get("avgBudget", 200),
-                        "user_roster": my_roster,
-                        "roster_size": len(my_roster),
+                        "my_roster": roster_by_position,
+                        "roster_spots_left": 16 - len(my_roster),
+                        "picks_complete": draft_status.get("draftStatus", {}).get("picksComplete", 0),
+                        "total_picks": 192,  # 12 teams * 16 slots
                         "recent_purchases": draft_status.get("recentPurchases", []),
-                        "team_budgets": draft_status.get("teamBudgets", {})
+                        "team_budgets": draft_status.get("teamBudgets", {}),
+                        "stars_acquired": sum(1 for p in my_roster if p.get("price", 0) > 35),
+                        "market_inflation": 1.0,  # Calculate this based on actual vs projected
+                        "drafted_players": drafted_players,
+                        "drafted_player_names": drafted_player_names
                     })
                     logger.info(f"Auction context: Budget ${context['my_budget']}, Roster size: {len(my_roster)}")
             
-            result = await agent.get_bid_recommendation(context)
+            # Handle the query - check if it's about a specific player nomination or general question
+            result = await agent.analyze_draft_question(query.query, context)
             
             # Format Yahoo Auction response for natural language display
             if isinstance(result, dict):
@@ -376,6 +396,103 @@ async def draft_query(query: DraftQuery):
         
     except Exception as e:
         logger.error(f"Draft query error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.post("/api/auction-bid")
+async def analyze_auction_bid(request: dict):
+    """Analyze a specific player nomination in auction draft"""
+    try:
+        # Only for sleeper-auction platform
+        if request.get("platform") != "sleeper-auction":
+            return JSONResponse({
+                "status": "error",
+                "message": "This endpoint is only for auction drafts"
+            })
+        
+        agent = state.get_sleeper_auction_agent()
+        
+        # Get current draft status
+        draft_status = await draft_monitor.get_draft_status("sleeper-auction")
+        
+        # Build context
+        context = {
+            "my_budget": draft_status.get("draftStatus", {}).get("myBudget", 200),
+            "avg_budget": draft_status.get("draftStatus", {}).get("avgBudget", 150),
+            "my_roster": draft_status.get("myRoster", {}),
+            "roster_spots_left": 16 - len(draft_status.get("myRoster", [])),
+            "picks_complete": draft_status.get("draftStatus", {}).get("picksComplete", 0),
+            "stars_acquired": sum(1 for p in draft_status.get("myRoster", []) if p.get("price", 0) > 35),
+            "team_budgets": draft_status.get("teamBudgets", {})
+        }
+        
+        # Get player and bid info from request
+        player = request.get("player", {})
+        current_bid = request.get("current_bid", 1)
+        
+        # Analyze the nomination
+        result = await agent.analyze_nomination(player, current_bid, context)
+        
+        return JSONResponse({
+            "status": "success",
+            "recommendation": result,
+            "platform": "sleeper-auction"
+        })
+        
+    except Exception as e:
+        logger.error(f"Auction bid analysis error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.get("/api/proactive/{platform}")
+async def get_proactive_analysis(platform: str):
+    """Get proactive analysis for the current draft state"""
+    try:
+        # Get draft status
+        draft_status = await draft_monitor.get_draft_status(platform)
+        if draft_status.get("status") != "success":
+            return JSONResponse({
+                "status": "error",
+                "message": "Not connected to draft"
+            })
+        
+        # Platform-specific proactive analysis
+        if platform == "sleeper-auction":
+            agent = state.get_sleeper_auction_agent()
+            
+            # Build context
+            context = {
+                "my_budget": draft_status.get("draftStatus", {}).get("myBudget", 200),
+                "avg_budget": draft_status.get("draftStatus", {}).get("avgBudget", 150),
+                "my_roster": draft_status.get("myRoster", {}),
+                "picks_complete": draft_status.get("draftStatus", {}).get("picksComplete", 0),
+                "total_picks": 192,
+                "stars_acquired": sum(1 for p in draft_status.get("myRoster", []) if p.get("price", 0) > 35)
+            }
+            
+            analysis = agent.get_proactive_analysis(context)
+            
+            return JSONResponse({
+                "status": "success",
+                "analysis": analysis,
+                "platform": platform
+            })
+        
+        # For other platforms, return basic analysis
+        return JSONResponse({
+            "status": "success",
+            "analysis": {
+                "title": "Draft Analysis",
+                "insights": ["Monitor available players", "Check position needs"]
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Proactive analysis error: {e}")
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e)}
@@ -492,8 +609,56 @@ async def get_draft_status(request: DraftStatusRequest):
                 })
             status['recentPicks'] = transformed_recent
             
-            # Ensure userRoster is set for UI (alias for roster)
-            status['userRoster'] = status.get('roster', [])
+            # Ensure userRoster is set for UI
+            if request.platform == "sleeper-auction":
+                # For auction, transform the data for UI
+                status['userRoster'] = status.get('myRoster', [])
+                
+                # Transform auction draftStatus to include fields UI expects
+                if 'draftStatus' in status:
+                    auction_status = status['draftStatus']
+                    # Add fields the UI looks for even in auction
+                    auction_status['currentPick'] = auction_status.get('picksComplete', 0)
+                    auction_status['nextPick'] = '-'  # Not applicable in auction
+                    auction_status['round'] = f"{auction_status.get('picksComplete', 0)}/{auction_status.get('totalSlots', 192)}"
+                    
+                    # Ensure budget fields are present
+                    auction_status['remainingBudget'] = auction_status.get('myBudget', 200)
+                    status['draftStatus'] = auction_status
+                
+                # Add drafted player names for the UI to filter available players
+                if 'draftedPlayers' in status:
+                    drafted_names = [p.get('name') for p in status['draftedPlayers'] if p.get('name')]
+                    status['draftedPlayerNames'] = drafted_names
+                    logger.info(f"Sending {len(drafted_names)} drafted player names to UI")
+                
+                # Transform recent purchases to recent picks format
+                if 'recentPurchases' in status:
+                    transformed_recent = []
+                    for purchase in status['recentPurchases']:
+                        player_name = purchase.get('player_name', f"Player {purchase.get('player_id', '')}")
+                        transformed_recent.append({
+                            'id': f"purchase_{purchase.get('player_id', '')}",
+                            'player': f"{player_name} - ${purchase.get('price', 0)}",
+                            'team': f"Team {purchase.get('team', '')}",
+                            'pick': purchase.get('price', 0),
+                            'position': purchase.get('position', '')
+                        })
+                    status['recentPicks'] = transformed_recent
+                
+                # Transform roster for UI display
+                if 'myRoster' in status:
+                    roster_display = []
+                    for player in status['myRoster']:
+                        roster_display.append({
+                            'name': player.get('name', 'Unknown'),
+                            'position': player.get('position', ''),
+                            'price': player.get('price', 0)
+                        })
+                    status['roster'] = roster_display
+            else:
+                # For snake drafts
+                status['userRoster'] = status.get('roster', [])
             
             # For Yahoo, fetch top available players from FantasyPros for UI display
             if request.platform == "yahoo-snake" and not status.get('availablePlayers'):
@@ -528,11 +693,14 @@ async def get_draft_status(request: DraftStatusRequest):
             logger.info(f"Roster Count: {len(status.get('userRoster', []))}")
             
             # Get proactive recommendation if available
+            logger.info(f"Getting proactive for platform: {request.platform}")
             recommendation = await draft_monitor.get_proactive_recommendation(
                 request.platform, status
             )
+            logger.info(f"Got recommendation: {recommendation}")
             if recommendation:
                 status["recommendation"] = recommendation
+                logger.info(f"Added recommendation to status")
         
         return JSONResponse(status)
     except Exception as e:

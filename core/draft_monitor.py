@@ -10,6 +10,7 @@ import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import logging
+from .sleeper_player_cache import sleeper_player_cache
 
 logger = logging.getLogger(__name__)
 
@@ -585,6 +586,9 @@ class DraftMonitor:
     async def _get_sleeper_auction_status(self, draft_id: str) -> Dict[str, Any]:
         """Get Sleeper auction draft status"""
         
+        # Ensure player cache is loaded
+        await sleeper_player_cache.ensure_loaded()
+        
         try:
             # Sleeper API endpoints for auction
             draft_url = f"https://api.sleeper.app/v1/draft/{draft_id}"
@@ -633,14 +637,20 @@ class DraftMonitor:
             team_rosters = {i: [] for i in range(1, teams + 1)}
             
             for pick in picks:
-                team_id = pick.get("picked_by")
-                amount = pick.get("metadata", {}).get("amount", 1)
+                team_id = pick.get("draft_slot")  # In auction, use draft_slot not picked_by
+                amount = int(pick.get("metadata", {}).get("amount", "1"))  # Amount might be string
                 player_id = pick.get("player_id")
+                player_name = f"{pick.get('metadata', {}).get('first_name', '')} {pick.get('metadata', {}).get('last_name', '')}".strip()
+                position = pick.get('metadata', {}).get('position', '')
+                
+                logger.info(f"Processing pick: Team {team_id} bought {player_name} for ${amount}")
                 
                 if team_id and team_id in team_budgets:
                     team_budgets[team_id] -= amount
                     team_rosters[team_id].append({
                         "player_id": player_id,
+                        "name": player_name,
+                        "position": position,
                         "price": amount
                     })
             
@@ -649,30 +659,82 @@ class DraftMonitor:
             current_bid = 0
             high_bidder = None
             
+            # Check last_picked field for current nomination
+            last_picked = draft_data.get("last_picked")
+            if last_picked:
+                logger.info(f"Auction last_picked: {last_picked}")
+                # This might be the current player up for auction
+                current_player = last_picked
+            
+            # Get current player from metadata
+            current_player_name = None
+            current_player_id = None
+            current_player_position = None
+            
             if draft_data.get("metadata"):
                 # Current nomination info might be in draft metadata
-                current_player = draft_data["metadata"].get("current_nomination")
-                current_bid = draft_data["metadata"].get("current_bid", 0)
-                high_bidder = draft_data["metadata"].get("high_bidder")
+                logger.info(f"Draft metadata: {draft_data['metadata']}")
+                
+                # Try to get nominated player ID
+                nominated_player_id = draft_data["metadata"].get("nominated_player_id")
+                if nominated_player_id:
+                    current_player_id = nominated_player_id
+                    # Get player name from cache
+                    current_player_name = sleeper_player_cache.get_player_name(nominated_player_id)
+                    
+                    # Also get player position if available
+                    player_info = sleeper_player_cache.get_player_info(nominated_player_id)
+                    if player_info:
+                        current_player_position = player_info.get("position")
+                    
+                    logger.info(f"Nominated player: {current_player_name} (ID: {nominated_player_id})")
+                
+                current_player = current_player_name or draft_data["metadata"].get("current_nomination") or current_player
+                
+                # Get current bid info
+                current_bid = int(draft_data["metadata"].get("highest_offer", 0))
+                offering_slot = draft_data["metadata"].get("offering_slot")
+                high_bidder = int(offering_slot) if offering_slot else None
             
-            # Find user's team ID based on team name
-            # For mock drafts, try to match team name to a number or use it directly
+            # Find user's team ID based on team name or slot number
             user_team_name = draft_info.get("team_name", "1")
+            user_team_id = None
             
-            # Try to parse team number from name (e.g., "Team 1" or just "1")
-            try:
-                if user_team_name.isdigit():
-                    user_team_id = int(user_team_name)
-                elif "team" in user_team_name.lower():
-                    # Extract number from "Team X" format
-                    import re
-                    match = re.search(r'\d+', user_team_name)
-                    user_team_id = int(match.group()) if match else 1
-                else:
-                    # Default to team 1 if can't parse
-                    user_team_id = 1
-            except:
-                user_team_id = 1
+            # First check if user provided a slot number directly
+            if user_team_name.isdigit():
+                user_team_id = int(user_team_name)
+                logger.info(f"User provided slot number directly: {user_team_id}")
+            else:
+                # Check draft_order for username mapping (Sleeper auction)
+                draft_order = draft_data.get("draft_order")
+                if draft_order:
+                    logger.info(f"Draft order mapping: {draft_order}")
+                    # draft_order is a dict like {"username": slot_number}
+                    if user_team_name in draft_order:
+                        user_team_id = draft_order[user_team_name]
+                        logger.info(f"Found user {user_team_name} at slot {user_team_id}")
+                    else:
+                        # Try case-insensitive match
+                        for username, slot in draft_order.items():
+                            if username.lower() == user_team_name.lower():
+                                user_team_id = slot
+                                logger.info(f"Found user {user_team_name} at slot {user_team_id} (case-insensitive)")
+                                break
+                
+                # If still not found, try parsing the team name
+                if user_team_id is None:
+                    try:
+                        if "team" in user_team_name.lower():
+                            # Extract number from "Team X" format
+                            import re
+                            match = re.search(r'\d+', user_team_name)
+                            user_team_id = int(match.group()) if match else 1
+                        else:
+                            # Default to slot 1 if we can't determine
+                            logger.warning(f"Could not determine slot for user '{user_team_name}', defaulting to slot 1")
+                            user_team_id = 1
+                    except:
+                        user_team_id = 1
             
             logger.info(f"User team mapping: '{user_team_name}' -> Team {user_team_id}")
             
@@ -680,18 +742,43 @@ class DraftMonitor:
             my_budget = team_budgets.get(user_team_id, budget)
             my_roster = team_rosters.get(user_team_id, [])
             
+            logger.info(f"User team {user_team_id}: Budget=${my_budget}, Roster={my_roster}")
+            
             # Calculate averages
             avg_budget = sum(team_budgets.values()) / len(team_budgets)
             
             # Recent purchases (last 5)
             recent_purchases = []
             for pick in picks[-5:]:
-                amount = pick.get("metadata", {}).get("amount", 1)
+                metadata = pick.get("metadata", {})
+                amount = metadata.get("amount", 1)
+                first_name = metadata.get("first_name", "")
+                last_name = metadata.get("last_name", "")
+                player_name = f"{first_name} {last_name}".strip() or f"Player {pick.get('player_id', '')}"
+                position = metadata.get("position", "")
+                team_slot = pick.get("draft_slot")
+                
                 recent_purchases.append({
                     "player_id": pick.get("player_id"),
+                    "player_name": player_name,
+                    "position": position,
                     "price": amount,
-                    "team": pick.get("picked_by")
+                    "team": team_slot
                 })
+            
+            # Build list of all drafted players for the agent
+            drafted_players = []
+            for pick in picks:
+                metadata = pick.get("metadata", {})
+                player_name = f"{metadata.get('first_name', '')} {metadata.get('last_name', '')}".strip()
+                if player_name:
+                    drafted_players.append({
+                        "player_id": pick.get("player_id"),
+                        "name": player_name,
+                        "position": metadata.get("position", ""),
+                        "price": int(metadata.get("amount", 0)),
+                        "team": pick.get("draft_slot")
+                    })
             
             return {
                 "status": "success",
@@ -711,7 +798,8 @@ class DraftMonitor:
                 },
                 "myRoster": my_roster,
                 "recentPurchases": recent_purchases,
-                "teamBudgets": team_budgets
+                "teamBudgets": team_budgets,
+                "draftedPlayers": drafted_players
             }
             
         except Exception as e:
@@ -721,8 +809,8 @@ class DraftMonitor:
     async def get_proactive_recommendation(self, platform: str, draft_status: Dict) -> Optional[Dict]:
         """Generate proactive recommendations based on draft status"""
         
-        if platform in ["sleeper", "sleeper-auction"]:
-            # Check if it's user's turn or almost user's turn
+        if platform == "sleeper":
+            # Check if it's user's turn or almost user's turn (snake draft only)
             if draft_status.get("draftStatus", {}).get("myTurn"):
                 return {
                     "title": "It's Your Pick!",
@@ -744,31 +832,263 @@ class DraftMonitor:
                 }
         
         elif platform == "sleeper-auction":
-            my_budget = draft_status.get("draftStatus", {}).get("myBudget", 200)
-            avg_budget = draft_status.get("draftStatus", {}).get("avgBudget", 200)
-            picks_complete = draft_status.get("draftStatus", {}).get("picksComplete", 0)
+            # For auction, ALWAYS show proactive analysis
+            logger.info("Getting proactive analysis for auction draft")
             
-            # Recommend nomination strategy based on draft phase
-            if picks_complete < 50:  # Early phase
+            # Check if there's a current player up for auction
+            current_player = draft_status.get("draftStatus", {}).get("currentPlayer")
+            
+            # If there's a player up for auction, show max bid analysis
+            if current_player:
+                logger.info(f"Player up for auction: {current_player}")
+                
+                # Try to get actual analysis from the agent
+                try:
+                    from platforms.sleeper.agents.sleeper_auction_crew_fast import SleeperAuctionCrewFast
+                    from platforms.sleeper.agents.auction_data_provider import SleeperAuctionDataProvider
+                    import asyncio
+                    
+                    agent = SleeperAuctionCrewFast()
+                    data_provider = SleeperAuctionDataProvider()
+                    
+                    # Build context for analysis
+                    my_budget = draft_status.get("draftStatus", {}).get("myBudget", 200)
+                    current_bid = draft_status.get("draftStatus", {}).get("currentBid", 0)
+                    my_roster = draft_status.get("myRoster", [])
+                    roster_spots_left = 16 - len(my_roster)
+                    
+                    # Get player info - current_player is the name, we might have the ID stored
+                    player_id = draft_status.get("draftStatus", {}).get("currentPlayerId")  
+                    if not player_id:
+                        # Try to extract ID from metadata if available
+                        metadata = draft_data.get("metadata", {}) if 'draft_data' in locals() else {}
+                        player_id = metadata.get("nominated_player_id")
+                    
+                    player_info = sleeper_player_cache.get_player_info(player_id) if player_id else None
+                    
+                    # Get actual auction values from rankings
+                    actual_auction_value = None
+                    player_position = "WR"  # Default
+                    
+                    try:
+                        # Fetch rankings with auction values (we're already in async context)
+                        rankings_data = await data_provider.get_rankings_with_values("HALF")
+                        
+                        if rankings_data and "auction_values" in rankings_data:
+                            auction_values = rankings_data["auction_values"]
+                            # Get the specific player's auction value
+                            if player_id and player_id in auction_values:
+                                actual_auction_value = auction_values[player_id]
+                                logger.info(f"Found auction value for {current_player}: ${actual_auction_value}")
+                            
+                            # Also try to find by name if ID lookup fails
+                            if not actual_auction_value and "rankings" in rankings_data:
+                                for p in rankings_data["rankings"]:
+                                    if p.get("name") == current_player:
+                                        pid = p.get("player_id") or p.get("id")
+                                        if pid in auction_values:
+                                            actual_auction_value = auction_values[pid]
+                                            player_position = p.get("position", "WR")
+                                            logger.info(f"Found auction value by name for {current_player}: ${actual_auction_value}")
+                                            break
+                    except Exception as e:
+                        logger.error(f"Could not fetch auction values: {e}")
+                    
+                    # Use position-based defaults if we can't find actual value
+                    default_values = {
+                        "RB": 25,  # RBs have wide range
+                        "WR": 25,  # WRs similar to RBs
+                        "QB": 12,  # QBs cheaper in 4PT TD
+                        "TE": 10,  # Most TEs are cheap
+                        "DEF": 1,  # Never pay for defense
+                        "K": 1     # No kickers in this league
+                    }
+                    
+                    if player_info:
+                        player_position = player_info.get("position", player_position)
+                        player_dict = {
+                            "name": current_player,
+                            "position": player_position,
+                            "auction_value": actual_auction_value or default_values.get(player_position, 15)
+                        }
+                    else:
+                        # Default if we can't find player info
+                        player_dict = {
+                            "name": current_player,
+                            "position": player_position,
+                            "auction_value": actual_auction_value or default_values.get(player_position, 15)
+                        }
+                    
+                    # Start with the actual auction value from rankings
+                    base_auction_value = player_dict.get("auction_value", 20)
+                    
+                    # Calculate what we can absolutely afford
+                    max_spendable = max(1, my_budget - roster_spots_left + 1)
+                    
+                    # Adjust based on YOUR specific situation
+                    adjusted_max_bid = base_auction_value  # Start with market value
+                    
+                    # Budget adjustment based on YOUR situation
+                    avg_dollars_per_spot = my_budget / roster_spots_left if roster_spots_left > 0 else 1
+                    
+                    # If you have more than $12 per roster spot, you're doing well
+                    if avg_dollars_per_spot > 12:  # Rich - can pay premiums
+                        adjusted_max_bid = int(base_auction_value * 1.1)  # 10% premium
+                    elif avg_dollars_per_spot > 8:  # Comfortable - pay fair value
+                        adjusted_max_bid = base_auction_value  # Pay market value
+                    elif avg_dollars_per_spot > 5:  # Getting tight - need small discounts
+                        adjusted_max_bid = int(base_auction_value * 0.9)  # 10% discount
+                    else:  # Very tight - only bargains
+                        adjusted_max_bid = int(base_auction_value * 0.75)  # 25% discount
+                    
+                    # Stars & Scrubs strategy adjustment
+                    stars_acquired = sum(1 for p in my_roster if p.get("price", 0) >= 40)
+                    if stars_acquired < 3 and my_budget >= 140:  # Still need stars
+                        if base_auction_value >= 50:  # This is a star player
+                            adjusted_max_bid = int(base_auction_value * 1.1)  # Pay up for stars
+                    elif stars_acquired >= 3:  # Have your stars
+                        if base_auction_value > 20:  # Don't need more expensive players
+                            adjusted_max_bid = min(adjusted_max_bid, 10)  # Only bargain hunting now
+                    
+                    # Never exceed what you can actually afford
+                    max_affordable = min(adjusted_max_bid, max_spendable)
+                    
+                    # Check if we need this position
+                    position_counts = {}
+                    for p in my_roster:
+                        pos = p.get("position", "")
+                        position_counts[pos] = position_counts.get(pos, 0) + 1
+                    
+                    player_pos = player_dict.get("position", "")
+                    position_need = "high"
+                    
+                    # Position need adjustments
+                    if player_pos == "WR":
+                        if position_counts.get("WR", 0) >= 3:
+                            position_need = "low"
+                            max_affordable = min(max_affordable, 5)  # Only $1-5 for depth
+                        elif position_counts.get("WR", 0) == 0:
+                            position_need = "critical"
+                            # Might pay slightly over value for first starter
+                            max_affordable = int(max_affordable * 1.05)
+                    elif player_pos == "RB":
+                        if position_counts.get("RB", 0) >= 3:
+                            position_need = "low" 
+                            max_affordable = min(max_affordable, 5)  # Only $1-5 for depth
+                        elif position_counts.get("RB", 0) == 0:
+                            position_need = "critical"
+                            max_affordable = int(max_affordable * 1.05)
+                    elif player_pos == "QB":
+                        if position_counts.get("QB", 0) >= 1:
+                            position_need = "none"
+                            max_affordable = 1  # Already have a QB
+                        else:
+                            # Cap QB value at $20 due to 4PT passing TDs
+                            max_affordable = min(max_affordable, 20)
+                    elif player_pos == "TE":
+                        if position_counts.get("TE", 0) >= 1:
+                            position_need = "low"
+                            max_affordable = min(max_affordable, 3)  # Only need cheap backup
+                        else:
+                            # If it's an elite TE (value > 25), might be worth it
+                            if base_auction_value < 25:
+                                max_affordable = min(max_affordable, 15)  # Non-elite TE cap
+                    
+                    # Build recommendation with reasoning
+                    content = f"**Max Bid: ${max_affordable}** "
+                    content += f"(Market: ${base_auction_value})\n"
+                    content += f"Current bid: ${current_bid} | "
+                    
+                    if max_affordable <= current_bid:
+                        content += "⛔ Over your limit\n"
+                    elif current_bid < max_affordable * 0.75:
+                        content += f"✅ Good value\n"  
+                    elif current_bid < max_affordable:
+                        content += "⚠️ Approaching max\n"
+                    else:
+                        content += "❌ Too expensive\n"
+                    
+                    # Add situational context
+                    content += f"\nBudget: ${my_budget} | Spots: {roster_spots_left}\n"
+                    
+                    # Explain the reasoning
+                    if stars_acquired < 3 and base_auction_value >= 50:
+                        content += "🎯 Elite player - pay up for stars"
+                    elif position_need == "none":
+                        content += f"✋ Already have {player_pos}"
+                    elif position_need == "low":
+                        content += f"📊 Low need at {player_pos}"
+                    elif position_need == "critical":
+                        content += f"🚨 Need {player_pos} starter"
+                    else:
+                        content += f"📈 Fair value for roster need"
+                    
+                    return {
+                        "title": f"{current_player}",
+                        "content": content,
+                        "action": None,
+                        "actionText": None
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"Failed to get player analysis: {e}", exc_info=True)
+                
+                # Fallback to simple message
                 return {
-                    "title": "Nomination Strategy",
-                    "content": f"You have ${my_budget} (avg: ${avg_budget:.0f}). Nominate expensive QBs ($25-40) to drain budgets.",
-                    "action": "Nominate a QB",
-                    "actionText": "See QB Options"
+                    "title": f"Player Up: {current_player}",
+                    "content": f"Budget: ${draft_status.get('draftStatus', {}).get('myBudget', 200)}\nUse the chat to get detailed analysis.",
+                    "action": None,
+                    "actionText": None
                 }
-            elif my_budget > avg_budget + 20:  # Budget advantage
-                return {
-                    "title": "Budget Advantage!",
-                    "content": f"You have ${my_budget} vs avg ${avg_budget:.0f}. Target a stud RB/WR now!",
-                    "action": "Target elite player",
-                    "actionText": "Show Top Available"
+            
+            # Otherwise show general strategy
+            try:
+                from platforms.sleeper.agents.sleeper_auction_crew_fast import SleeperAuctionCrewFast
+                agent = SleeperAuctionCrewFast()
+                
+                # Build proper context
+                context = {
+                    "my_budget": draft_status.get("draftStatus", {}).get("myBudget", 200),
+                    "avg_budget": draft_status.get("draftStatus", {}).get("avgBudget", 150),
+                    "my_roster": draft_status.get("myRoster", []),
+                    "picks_complete": draft_status.get("draftStatus", {}).get("picksComplete", 0),
+                    "roster_spots_left": 16 - len(draft_status.get("myRoster", [])),
+                    "stars_acquired": 0
                 }
-            else:  # Value hunting phase
+                
+                logger.info(f"Auction context: {context}")
+                
+                # Count expensive players as stars
+                for player in draft_status.get("myRoster", []):
+                    if player.get("price", 0) > 35:
+                        context["stars_acquired"] += 1
+                
+                # Get the actual analysis from the agent
+                analysis = agent.get_proactive_analysis(context)
+                logger.info(f"Got proactive analysis: {analysis}")
+                
+                # Format for UI (convert insights list to content string)
+                if "insights" in analysis:
+                    content = "\n".join(analysis["insights"])
+                    result = {
+                        "title": analysis.get("title", "Auction Strategy"),
+                        "content": content,
+                        "action": None,
+                        "actionText": None
+                    }
+                    logger.info(f"Returning proactive recommendation: {result}")
+                    return result
+                return analysis
+                
+            except Exception as e:
+                logger.error(f"Failed to get proactive analysis: {e}", exc_info=True)
+                # Fallback to simple message
+                my_budget = draft_status.get("draftStatus", {}).get("myBudget", 200)
                 return {
-                    "title": "Value Hunting Mode",
-                    "content": f"With ${my_budget} left, look for $1-5 sleepers and handcuffs.",
-                    "action": "Find value picks",
-                    "actionText": "Show Sleepers"
+                    "title": "Auction Strategy",
+                    "content": f"Budget: ${my_budget}. Focus on Stars & Scrubs strategy.",
+                    "action": None,
+                    "actionText": None
                 }
         
         return None

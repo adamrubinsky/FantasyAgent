@@ -136,7 +136,7 @@
                                 <label class="text-sm text-gray-700">Team Name:</label>
                                 <input v-model="userTeamName" 
                                        type="text" 
-                                       placeholder="Your team name"
+                                       placeholder="Slot # (e.g., 2) or team name"
                                        class="px-3 py-1 border rounded focus:outline-none focus:border-blue-500 text-gray-700 text-sm">
                             </div>
                         </div>
@@ -409,6 +409,8 @@
                             <i class="fas fa-plug mr-1"></i>
                             {{ selectedPlatform === 'sleeper' ? 
                                'Connect to draft for proactive recommendations' : 
+                               selectedPlatform === 'sleeper-auction' ?
+                               'Connect to auction draft for budget strategy' :
                                'Proactive analysis coming soon for Yahoo' }}
                         </div>
                     </div>
@@ -748,7 +750,7 @@
                 },
 
                 async checkProactiveRecommendations() {
-                    if (!this.draftConnected || this.selectedPlatform !== 'sleeper') return;
+                    if (!this.draftConnected || (!this.selectedPlatform.startsWith('sleeper') && !this.selectedPlatform.startsWith('yahoo'))) return;
                     
                     this.proactiveLoading = true;
                     try {
@@ -794,6 +796,11 @@
                 updateDraftStatus(data) {
                     this.draftStatus = data.draftStatus || this.draftStatus;
                     
+                    // Update auction budget if present
+                    if (data.draftStatus && data.draftStatus.remainingBudget !== undefined) {
+                        this.auctionBudget = data.draftStatus.remainingBudget;
+                    }
+                    
                     // Update roster with proper data
                     if (data.roster) {
                         this.myRoster = data.roster;
@@ -803,12 +810,12 @@
                     // Update recent picks with player names
                     if (data.recentPicks) {
                         this.recentPicks = data.recentPicks.map(pick => ({
-                            id: pick.pick_no,
-                            player: pick.metadata?.first_name && pick.metadata?.last_name ? 
+                            id: pick.id || pick.pick_no,
+                            player: pick.player || (pick.metadata?.first_name && pick.metadata?.last_name ? 
                                     `${pick.metadata.first_name} ${pick.metadata.last_name}` : 
-                                    pick.player_id || 'Unknown Player',
-                            number: pick.pick_no,
-                            team: pick.picked_by,
+                                    pick.player_id || 'Unknown Player'),
+                            number: pick.pick || pick.pick_no,
+                            team: pick.team || pick.picked_by,
                             round: pick.round
                         }));
                     }
@@ -1094,7 +1101,8 @@
                 },
                 
                 startDraftMonitoring() {
-                    // Poll for draft updates every 30 seconds (reduced from 5s to avoid Yahoo rate limits)
+                    // Poll more frequently for auction (3s) vs snake drafts (10s)
+                    const pollInterval = this.selectedPlatform === 'sleeper-auction' ? 3000 : 10000;
                     this.draftMonitorInterval = setInterval(async () => {
                         try {
                             const response = await fetch('/api/draft-status', {
@@ -1121,7 +1129,7 @@
                         } catch (error) {
                             console.error('Draft monitoring error:', error);
                         }
-                    }, 10000); // Poll every 10 seconds (balanced for live updates without rate limits)
+                    }, pollInterval); // Poll based on platform type
                 }
             },
             
