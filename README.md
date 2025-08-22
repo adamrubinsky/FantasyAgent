@@ -3,7 +3,8 @@
 **Real-time draft assistance for Sleeper leagues with AI-powered recommendations**
 
 [![Platform](https://img.shields.io/badge/Platform-Sleeper-purple.svg)](https://sleeper.app)
-[![AI](https://img.shields.io/badge/AI-Claude%203.5%20Sonnet-blue.svg)](https://anthropic.com)
+[![AI](https://img.shields.io/badge/AI-Claude%204%20Sonnet-blue.svg)](https://anthropic.com)
+[![Framework](https://img.shields.io/badge/Framework-CrewAI-orange.svg)](https://crewai.com)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)](https://github.com/adamrubinsky/FantasyAgent)
 
 ---
