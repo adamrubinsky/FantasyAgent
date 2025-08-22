@@ -5,6 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Sleeper-purple.svg)](https://sleeper.app)
 [![AI](https://img.shields.io/badge/AI-Claude%204%20Sonnet-blue.svg)](https://anthropic.com)
 [![Framework](https://img.shields.io/badge/Framework-CrewAI-orange.svg)](https://crewai.com)
+[![Tech](https://img.shields.io/badge/Tech-Python%20%7C%20FastAPI%20%7C%20Vue.js-red.svg)](https://github.com/adamrubinsky/FantasyAgent)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)](https://github.com/adamrubinsky/FantasyAgent)
 
 ---
