@@ -23,6 +23,9 @@ class DraftMonitor:
         self.draft_cache = {}  # Cache draft data to reduce API calls
         self.cache_ttl = 30  # Cache for 30 seconds
         self.last_fetch_time = {}
+        # Auction-specific tracking
+        self._last_auction_pick_count = {}  # Track pick counts by draft_id
+        self._last_auction_sale_time = {}   # Track sale times by draft_id
         
     async def connect(self, platform: str, url: str, draft_slot: Optional[int] = None, 
                       team_name: Optional[str] = None) -> Dict[str, Any]:
@@ -625,12 +628,44 @@ class DraftMonitor:
             budget = settings.get("budget", 200)  # Default $200
             teams = settings.get("teams", 12)
             
-            # Log what we're getting from Sleeper
-            logger.info(f"Sleeper auction draft type: {draft_type}")
-            logger.info(f"Sleeper auction picks count: {len(picks)}")
-            logger.info(f"Draft data keys: {draft_data.keys()}")
-            if picks:
-                logger.info(f"Sample pick: {picks[0]}")
+            # Log what we're getting from Sleeper with timestamp
+            from datetime import datetime
+            now = datetime.now().strftime("%H:%M:%S")
+            logger.info(f"[{now}] Sleeper auction draft type: {draft_type}")
+            logger.info(f"[{now}] Sleeper auction picks count: {len(picks)}")
+            
+            # Track if we just had a sale (new pick added)
+            # draft_id is passed as parameter to this function
+            last_pick_count = self._last_auction_pick_count.get(draft_id, 0)
+            just_sold = len(picks) > last_pick_count
+            self._last_auction_pick_count[draft_id] = len(picks)
+            
+            logger.info(f"[{now}] Last pick count: {last_pick_count}, Current: {len(picks)}, Just sold: {just_sold}")
+            
+            if just_sold and picks:
+                latest = picks[-1]
+                player_name = f"{latest.get('metadata', {}).get('first_name', '')} {latest.get('metadata', {}).get('last_name', '')}".strip()
+                logger.info(f"[{now}] JUST SOLD: {player_name} to team {latest.get('draft_slot')} for ${latest.get('metadata', {}).get('amount', 0)}")
+            
+            # Check for current nomination - log all metadata to see what's available
+            metadata = draft_data.get("metadata", {})
+            logger.info(f"[{now}] Draft metadata keys: {list(metadata.keys())[:10]}")  # First 10 keys
+            
+            # Check various possible fields
+            current_nomination = metadata.get("current_nomination")
+            nominated_player = metadata.get("nominated_player")
+            player_up = metadata.get("player_up")
+            
+            if current_nomination:
+                logger.info(f"[{now}] Current nomination: {current_nomination}")
+            if nominated_player:
+                logger.info(f"[{now}] Nominated player: {nominated_player}")
+            if player_up:
+                logger.info(f"[{now}] Player up: {player_up}")
+            
+            if picks and len(picks) > 0:
+                latest_pick = picks[-1]
+                logger.info(f"[{now}] Latest pick: Player {latest_pick.get('player_id')} for ${latest_pick.get('metadata', {}).get('amount', 0)}")
             
             # Calculate spent budgets per team
             team_budgets = {i: budget for i in range(1, teams + 1)}
@@ -677,17 +712,46 @@ class DraftMonitor:
                 
                 # Try to get nominated player ID
                 nominated_player_id = draft_data["metadata"].get("nominated_player_id")
+                
+                # If we just had a sale, clear any stale nomination
+                if just_sold and nominated_player_id:
+                    logger.info(f"[{now}] Sale just happened - checking if nomination is stale")
+                    # Give a 2-second grace period for API to update
+                    import time
+                    current_time = time.time()
+                    last_sale_time = self._last_auction_sale_time.get(draft_id, 0)
+                    if current_time - last_sale_time < 2:
+                        logger.info(f"[{now}] Within 2s of last sale - treating as no nomination")
+                        nominated_player_id = None
+                    self._last_auction_sale_time[draft_id] = current_time
+                
                 if nominated_player_id:
-                    current_player_id = nominated_player_id
-                    # Get player name from cache
-                    current_player_name = sleeper_player_cache.get_player_name(nominated_player_id)
+                    # Check if this player has already been purchased
+                    player_already_sold = False
+                    for pick in picks:
+                        if pick.get("player_id") == nominated_player_id:
+                            player_already_sold = True
+                            sold_to = pick.get("draft_slot")
+                            sold_for = pick.get("metadata", {}).get("amount", 0)
+                            logger.info(f"[{now}] Nominated player {nominated_player_id} was already sold to team {sold_to} for ${sold_for}")
+                            break
                     
-                    # Also get player position if available
-                    player_info = sleeper_player_cache.get_player_info(nominated_player_id)
-                    if player_info:
-                        current_player_position = player_info.get("position")
-                    
-                    logger.info(f"Nominated player: {current_player_name} (ID: {nominated_player_id})")
+                    if not player_already_sold and not just_sold:
+                        current_player_id = nominated_player_id
+                        # Get player name from cache
+                        current_player_name = sleeper_player_cache.get_player_name(nominated_player_id)
+                        
+                        # Also get player position if available
+                        player_info = sleeper_player_cache.get_player_info(nominated_player_id)
+                        if player_info:
+                            current_player_position = player_info.get("position")
+                        
+                        logger.info(f"[{now}] Nominated player: {current_player_name} (ID: {nominated_player_id})")
+                    else:
+                        # Player was already sold, no current nomination
+                        logger.info(f"[{now}] No active nomination (previous player was sold or sale just happened)")
+                        current_player_id = None
+                        current_player_name = None
                 
                 current_player = current_player_name or draft_data["metadata"].get("current_nomination") or current_player
                 
@@ -838,6 +902,51 @@ class DraftMonitor:
             # Check if there's a current player up for auction
             current_player = draft_status.get("draftStatus", {}).get("currentPlayer")
             
+            # If no player is currently nominated, show waiting message
+            if not current_player:
+                logger.info("No active nomination - waiting for next player")
+                my_budget = draft_status.get("draftStatus", {}).get("myBudget", 200)
+                my_roster = draft_status.get("myRoster", [])
+                roster_spots_left = 16 - len(my_roster)
+                
+                # Build helpful waiting message
+                content = "⏳ Waiting for next nomination...\n\n"
+                content += f"💰 Budget: ${my_budget}\n"
+                content += f"📋 Roster spots left: {roster_spots_left}\n"
+                
+                # Add position needs
+                position_counts = {}
+                for p in my_roster:
+                    pos = p.get("position", "")
+                    position_counts[pos] = position_counts.get(pos, 0) + 1
+                
+                needs = []
+                if position_counts.get("RB", 0) < 2:
+                    needs.append("RB")
+                if position_counts.get("WR", 0) < 2:
+                    needs.append("WR")
+                if position_counts.get("QB", 0) < 1:
+                    needs.append("QB")
+                if position_counts.get("TE", 0) < 1:
+                    needs.append("TE")
+                
+                if needs:
+                    content += f"🎯 Priority needs: {', '.join(needs)}\n"
+                
+                # Add strategy reminder
+                stars_acquired = sum(1 for p in my_roster if p.get("price", 0) >= 40)
+                if stars_acquired < 3 and my_budget >= 100:
+                    content += "\n💡 Strategy: Still looking for elite players"
+                elif stars_acquired >= 3:
+                    content += "\n💡 Strategy: Focus on value picks now"
+                
+                return {
+                    "title": "Auction Draft",
+                    "content": content,
+                    "action": None,
+                    "actionText": None
+                }
+            
             # If there's a player up for auction, show max bid analysis
             if current_player:
                 logger.info(f"Player up for auction: {current_player}")
@@ -876,21 +985,27 @@ class DraftMonitor:
                         
                         if rankings_data and "auction_values" in rankings_data:
                             auction_values = rankings_data["auction_values"]
-                            # Get the specific player's auction value
-                            if player_id and player_id in auction_values:
-                                actual_auction_value = auction_values[player_id]
-                                logger.info(f"Found auction value for {current_player}: ${actual_auction_value}")
                             
-                            # Also try to find by name if ID lookup fails
-                            if not actual_auction_value and "rankings" in rankings_data:
+                            # Try to get value by player name first (pre-calculated values use names as keys)
+                            if current_player and current_player in auction_values:
+                                actual_auction_value = auction_values[current_player]
+                                logger.info(f"Found pre-calculated auction value for {current_player}: ${actual_auction_value}")
+                            # Fall back to player_id lookup if name lookup fails
+                            elif player_id and player_id in auction_values:
+                                actual_auction_value = auction_values[player_id]
+                                logger.info(f"Found auction value by ID for {current_player}: ${actual_auction_value}")
+                            
+                            # Also try to find player info from rankings
+                            if "rankings" in rankings_data:
                                 for p in rankings_data["rankings"]:
                                     if p.get("name") == current_player:
-                                        pid = p.get("player_id") or p.get("id")
-                                        if pid in auction_values:
-                                            actual_auction_value = auction_values[pid]
-                                            player_position = p.get("position", "WR")
-                                            logger.info(f"Found auction value by name for {current_player}: ${actual_auction_value}")
-                                            break
+                                        player_position = p.get("position", "WR")
+                                        if not actual_auction_value:
+                                            # Try to get value from player dict
+                                            actual_auction_value = p.get("base_auction_value", 0)
+                                            if actual_auction_value:
+                                                logger.info(f"Found auction value in player data for {current_player}: ${actual_auction_value}")
+                                        break
                     except Exception as e:
                         logger.error(f"Could not fetch auction values: {e}")
                     
@@ -1063,22 +1178,35 @@ class DraftMonitor:
                     if player.get("price", 0) > 35:
                         context["stars_acquired"] += 1
                 
-                # Get the actual analysis from the agent
-                analysis = agent.get_proactive_analysis(context)
-                logger.info(f"Got proactive analysis: {analysis}")
-                
-                # Format for UI (convert insights list to content string)
-                if "insights" in analysis:
-                    content = "\n".join(analysis["insights"])
+                # For auction drafts, skip the agent and return quick analysis
+                if self.platform_type == "sleeper-auction":
+                    # Already have all the data we need from above calculations
                     result = {
-                        "title": analysis.get("title", "Auction Strategy"),
+                        "title": f"Player Up: {current_player}",
                         "content": content,
+                        "timing": "immediate",
                         "action": None,
                         "actionText": None
                     }
-                    logger.info(f"Returning proactive recommendation: {result}")
+                    logger.info(f"Quick auction analysis generated - returning immediately")
                     return result
-                return analysis
+                else:
+                    # Get the actual analysis from the agent (snake draft)
+                    analysis = agent.get_proactive_analysis(context)
+                    logger.info(f"Got proactive analysis from agent: {analysis}")
+                    
+                    # Format for UI (convert insights list to content string)
+                    if "insights" in analysis:
+                        content = "\n".join(analysis["insights"])
+                        result = {
+                            "title": analysis.get("title", "Draft Strategy"),
+                            "content": content,
+                            "action": None,
+                            "actionText": None
+                        }
+                        logger.info(f"Returning proactive recommendation: {result}")
+                        return result
+                    return analysis
                 
             except Exception as e:
                 logger.error(f"Failed to get proactive analysis: {e}", exc_info=True)

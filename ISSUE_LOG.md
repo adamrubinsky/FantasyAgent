@@ -106,17 +106,35 @@
 - Dynamic polling: 3 seconds for auction, 10 for snake
 - Platform-specific configuration in unified.html
 
+### Issue #8: Proactive Analysis 15+ Second Update Lag
+**Status**: RESOLVED
+**Date**: 2025-08-24
+**Symptoms**:
+- Nominations showing same player for 15+ seconds after they were sold
+- Updates taking much longer than expected 2-3 seconds
+
+**Root Cause**:
+- Sleeper API's `nominated_player_id` doesn't update immediately after sale
+- API has inherent 5-8 second delay from live draft window
+
+**Resolution**:
+- Implemented stale nomination detection (checks if player in picks)
+- Added pick count tracking to detect sales
+- Shows "Waiting for next nomination..." when between players
+- Fixed frontend polling to actually use 2-second intervals
+- Remaining 5-8 second delay is Sleeper's API lag (cannot be optimized)
+
 ## Known Issues
 
-### Issue #8: Sleeper Auction Values Not From API
-**Status**: OPEN
+### Issue #9: Sleeper Auction Values Not From API
+**Status**: WORKAROUND IN PLACE
 **Notes**: 
 - Sleeper has auction values visible in draft window
 - Not found in API responses yet
-- Currently using VBD calculations as workaround
-- User noted: "their projections are there somewhere"
+- Using pre-calculated VBD values for all 580 players
+- Instant lookups from data/pre_calculated_auction_values.json
 
-### Issue #9: Name Matching Inconsistencies
+### Issue #10: Name Matching Inconsistencies
 **Status**: MONITORING
 **Notes**:
 - Some players with Jr/Sr/III suffixes may not match

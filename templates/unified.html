@@ -1101,9 +1101,17 @@
                 },
                 
                 startDraftMonitoring() {
-                    // Poll more frequently for auction (3s) vs snake drafts (10s)
-                    const pollInterval = this.selectedPlatform === 'sleeper-auction' ? 3000 : 10000;
+                    // Clear any existing interval first
+                    if (this.draftMonitorInterval) {
+                        clearInterval(this.draftMonitorInterval);
+                        this.draftMonitorInterval = null;
+                    }
+                    
+                    // Poll more frequently for auction (2s) vs snake drafts (10s)
+                    const pollInterval = this.selectedPlatform === 'sleeper-auction' ? 2000 : 10000;
+                    console.log(`Starting draft monitoring for ${this.selectedPlatform} with ${pollInterval}ms interval`);
                     this.draftMonitorInterval = setInterval(async () => {
+                        console.log(`[${new Date().toLocaleTimeString()}] Polling draft status...`);
                         try {
                             const response = await fetch('/api/draft-status', {
                                 method: 'POST',
@@ -1123,7 +1131,11 @@
                                 
                                 // Check for proactive recommendations
                                 if (data.recommendation) {
-                                    this.proactiveRecommendation = data.recommendation;
+                                    // Force Vue to update by creating new object
+                                    this.proactiveRecommendation = {...data.recommendation};
+                                    console.log(`[${new Date().toLocaleTimeString()}] Updated proactive:`, data.recommendation.title);
+                                } else if (this.selectedPlatform === 'sleeper-auction') {
+                                    console.log(`[${new Date().toLocaleTimeString()}] No recommendation in response`);
                                 }
                             }
                         } catch (error) {

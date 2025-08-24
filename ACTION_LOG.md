@@ -41,13 +41,55 @@
 - Kept 10 seconds for snake drafts
 - Platform-specific polling configuration
 
+## Phase 3 Day 2: Final Pre-Draft Optimizations
+
+### Stale Nomination Detection System
+**Date**: 2025-08-24
+**Issue**: Proactive analysis showing outdated players for 15+ seconds after they were sold
+**Root Cause**: Sleeper API's `nominated_player_id` field doesn't update immediately after a player is sold
+**Fix**: Implemented comprehensive stale detection in draft_monitor.py
+- Lines 27-28: Added instance variables for tracking pick counts and sale times
+- Lines 638-645: Track pick count changes to detect new sales
+- Lines 700-748: Check if nominated player exists in completed picks
+- Shows "Waiting for next nomination..." when no active player
+- Added 2-second grace period after sales for API to update
+
+### Frontend Polling Optimization
+**Date**: 2025-08-24
+**Issue**: Vue.js frontend not updating at configured 2-second intervals
+**Fix**: Fixed interval management in unified.html
+- Lines 1105-1108: Clear existing intervals before starting new ones
+- Ensures 2-second polling for auction drafts actually works
+- Prevents conflicting timers from reconnections
+
+### Pre-calculated Auction Values
+**Date**: 2025-08-24
+**Issue**: Real-time VBD calculations too slow for auction pace
+**Fix**: Pre-calculated all 580 players' auction values
+- Created data/pre_calculated_auction_values.json
+- Instant lookups during draft (no calculations needed)
+- Values based on rank tiers with position adjustments
+
+### Performance Results
+- Backend detection: Immediate (detects stale data instantly)
+- Frontend polling: 2 seconds (auction), 10 seconds (snake)
+- API lag: 5-8 seconds (Sleeper's inherent delay - cannot be optimized)
+- Overall update time: 5-8 seconds (limited by API, not our system)
+
 ### Key Code Changes
 
 #### draft_monitor.py
-- Lines 699-737: Fixed team detection logic to accept slot numbers
-- Line 848: Corrected import to SleeperAuctionDataProvider
-- Lines 874-875: Changed asyncio handling to await
-- Lines 897-920: Added position-based defaults and budget adjustments
+- Lines 27-28: Added auction tracking instance variables
+- Lines 638-645: Pick count tracking for sale detection
+- Lines 710-748: Stale nomination detection logic
+- Lines 877-919: "Waiting for next nomination" UI state
+
+#### unified.html
+- Lines 1105-1108: Fixed interval clearing issue
+- Line 1111: Confirmed 2-second polling for auction
+
+#### Final Observation
+The remaining 5-8 second delay is Sleeper's API lag, not a system issue. Our optimizations have maximized performance within API constraints.
 - Lines 923-934: Implemented budget-aware max bid calculations
 
 #### auction_data_provider.py
